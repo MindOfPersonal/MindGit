@@ -11,10 +11,10 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.x-010101?style=flat-square&logo=socket.io&logoColor=white)](https://socket.io/)
 [![PM2](https://img.shields.io/badge/PM2-ready-2E0331?style=flat-square&logo=pm2&logoColor=white)](https://pm2.keymetrics.io/)
 
-[![GitHub stars](https://img.shields.io/github/stars/MindOfDaanNL/MindGit?style=social)](https://github.com/MindOfDaanNL/MindGit/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/MindOfDaanNL/MindGit?style=social)](https://github.com/MindOfDaanNL/MindGit/network/members)
-[![GitHub issues](https://img.shields.io/github/issues/MindOfDaanNL/MindGit?style=social)](https://github.com/MindOfDaanNL/MindGit/issues)
-[![GitHub last commit](https://img.shields.io/github/last-commit/MindOfDaanNL/MindGit?style=social)](https://github.com/MindOfDaanNL/MindGit/commits)
+[![GitHub stars](https://img.shields.io/github/stars/MindOfPersonal/MindGit?style=social)](https://github.com/MindOfPersonal/MindGit/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/MindOfPersonal/MindGit?style=social)](https://github.com/MindOfPersonal/MindGit/network/members)
+[![GitHub issues](https://img.shields.io/github/issues/MindOfPersonal/MindGit?style=social)](https://github.com/MindOfPersonal/MindGit/issues)
+[![GitHub last commit](https://img.shields.io/github/last-commit/MindOfPersonal/MindGit?style=social)](https://github.com/MindOfPersonal/MindGit/commits)
 
 <p>
   <a href="#-features">✨ Features</a> •
@@ -161,7 +161,7 @@ The fastest way to get MindGit running locally:
 
 ```bash
 # 1. Clone
-git clone https://github.com/MindOfDaanNL/MindGit.git
+git clone https://github.com/MindOfPersonal/MindGit.git
 cd MindGit
 
 # 2. Install deps
@@ -203,7 +203,7 @@ Open <http://localhost:3050> (or the `PORT` from your `.env`), log in with `admi
 
 1. **Clone and install**
    ```bash
-   git clone https://github.com/MindOfDaanNL/MindGit.git
+   git clone https://github.com/MindOfPersonal/MindGit.git
    cd MindGit
    npm install
    ```
@@ -267,7 +267,7 @@ All configuration lives in `.env`. Copy `.env.example` and edit it.
 | `PORT` | HTTP port to listen on | `3050` |
 | `BROWSE_ROOTS` | Comma-separated whitelist of absolute paths the folder browser is allowed to read | `/home/you,/var/repos` |
 | `GITHUB_TOKEN` | Optional global fallback token (seeded into `settings` on startup if empty) | `ghp_...` |
-| `GITHUB_USER` | Optional global fallback GitHub username | `MindOfDaanNL` |
+| `GITHUB_USER` | Optional global fallback GitHub username | `MindOfPersonal` |
 | `NODE_ENV` | Set to `production` to enable secure cookies + `sameSite=none` | `production` |
 
 > ⚠️ **Never commit `.env`.** It is already in `.gitignore`. Keep your encryption key, session secret and tokens private.
@@ -279,7 +279,7 @@ All configuration lives in `.env`. Copy `.env.example` and edit it.
 MindGit lets you link **multiple GitHub accounts per dashboard user**. Each account has:
 
 - A **label** (e.g. "Personal", "Work", "MindFramework")
-- A **GitHub username** (e.g. `MindOfDaanNL`)
+- A **GitHub username** (e.g. `MindOfPersonal`)
 - A **Personal Access Token** with `repo` scope (stored AES-256-GCM encrypted)
 - An **is-default** flag — used when no explicit account is chosen
 
@@ -364,7 +364,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:3050/api/accounts
 {
   "success": true,
   "data": [
-    { "id": 1, "label": "Standaard", "github_user": "MindOfDaanNL", "is_default": 1 },
+    { "id": 1, "label": "Standaard", "github_user": "MindOfPersonal", "is_default": 1 },
     { "id": 2, "label": "Werk",      "github_user": "MindFramework", "is_default": 0 }
   ]
 }
@@ -603,13 +603,13 @@ Released under the [MIT License](LICENSE).
 ---
 
 <p>
-  <a href="https://github.com/MindOfDaanNL/MindGit">⭐ Star</a> •
-  <a href="https://github.com/MindOfDaanNL/MindGit/issues">🐛 Report a bug</a> •
-  <a href="https://github.com/MindOfDaanNL/MindGit/fork">🍴 Fork</a>
+  <a href="https://github.com/MindOfPersonal/MindGit">⭐ Star</a> •
+  <a href="https://github.com/MindOfPersonal/MindGit/issues">🐛 Report a bug</a> •
+  <a href="https://github.com/MindOfPersonal/MindGit/fork">🍴 Fork</a>
 </p>
 
 <p>
-  <sub>Built by <a href="https://github.com/MindOfDaanNL">MindDevelopment - 2026</a>
+  <sub>Built by <a href="https://github.com/MindOfPersonal">MindDevelopment - 2026</a>
 </p>
 
 </div>
