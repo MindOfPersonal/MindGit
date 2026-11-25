@@ -1,0 +1,187 @@
+<% var page = ''; %>
+<%- include('partials/header', { title: t('watch.title') }) %>
+
+<style>
+.watch-grid { display: grid; gap: 20px; }
+.watch-panel { background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); border: 1px solid var(--glass-border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--glass-shadow); }
+.watch-panel-header { padding: 12px 18px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.watch-panel-header .name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.watch-panel-header .path { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-left: auto; }
+.watch-status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.watch-status-dot.green { background: var(--green); }
+.watch-status-dot.yellow { background: var(--yellow); animation: watchPulse 2s infinite; }
+.watch-status-dot.orange { background: var(--orange); animation: watchPulse 2s infinite; }
+.watch-status-dot.cyan { background: var(--cyan); animation: watchPulse 2s infinite; }
+.watch-status-dot.red { background: var(--red); }
+.watch-status-dot.gray { background: var(--text-muted); }
+.watch-console { padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.7; color: #a0a0b8; max-height: 200px; overflow-y: auto; background: rgba(6, 6, 14, 0.55); backdrop-filter: blur(8px) saturate(120%); -webkit-backdrop-filter: blur(8px) saturate(120%); }
+.watch-console .added { color: #4caf50; }
+.watch-console .modified { color: #ff9800; }
+.watch-console .deleted { color: var(--red); }
+.watch-console .renamed { color: #ce93d8; }
+.watch-console .warning { color: var(--yellow); }
+.watch-console .muted { color: var(--text-muted); }
+.watch-badges { display: flex; gap: 4px; align-items: center; }
+.global-console { background: rgba(6, 6, 14, 0.55); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.7; max-height: 250px; overflow-y: auto; margin-bottom: 20px; backdrop-filter: blur(8px) saturate(120%); -webkit-backdrop-filter: blur(8px) saturate(120%); }
+.global-console .success { color: var(--green); }
+.global-console .danger { color: var(--red); }
+.global-console .warning { color: var(--yellow); }
+.global-console .info { color: #58a6ff; }
+.global-console .muted { color: var(--text-muted); }
+@keyframes watchPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+</style>
+
+<div class="page-header">
+  <div>
+    <h1>&#128260; <%= t('watch.title') %></h1>
+    <p class="page-description"><%= t('watch.subtitle') %></p>
+  </div>
+  <div class="header-actions">
+    <button id="btnToggle" onclick="toggleWatch()" class="btn btn-success"><%= t('watch.start') %></button>
+    <a href="/repos" class="btn btn-secondary"><%= t('button.back') %></a>
+  </div>
+</div>
+
+<div class="global-console" id="globalConsole">
+  <span class="muted"><%= t('watch.placeholder') %></span>
+</div>
+
+<div class="watch-grid" id="watchGrid">
+  <% repos.forEach(function(repo) { %>
+  <div class="watch-panel" id="panel-<%= repo.id %>">
+    <div class="watch-panel-header">
+      <span class="watch-status-dot <%= repo.color %>" id="dot-<%= repo.id %>"></span>
+      <span class="name"><%= repo.name %></span>
+      <span class="watch-badges" id="badges-<%= repo.id %>">
+        <% if (repo.changes > 0) { %><span class="badge badge-yellow"><%= repo.changes %> <%= t('watch.changes') %></span><% } %>
+        <% if (repo.behindCount > 0) { %><span class="badge badge-cyan"><%= repo.behindCount %> &#8595;</span><% } %>
+        <% if (repo.aheadCount > 0) { %><span class="badge badge-green"><%= repo.aheadCount %> &#8593;</span><% } %>
+        <% if (repo.changes===0 && repo.behindCount===0 && repo.aheadCount===0) { %><span class="badge badge-green">OK</span><% } %>
+      </span>
+      <span class="path"><%= repo.path %></span>
+    </div>
+    <div class="watch-console" id="console-<%= repo.id %>">
+      <span class="muted"><%= t('watch.loading') %></span>
+    </div>
+  </div>
+  <% }); %>
+
+  <% if (repos.length === 0) { %>
+    <div class="empty-state">
+      <div class="empty-icon">&#128194;</div>
+      <h3><%= t('watch.emptyTitle') %></h3>
+      <p><%= t('watch.emptyDesc') %></p>
+    </div>
+  <% } %>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+var socket = io();
+var watchActive = false;
+
+var STR = {
+  start: "<%= t('watch.start') %>",
+  stop: "<%= t('watch.stop') %>",
+  started: "<%= t('watch.started') %>",
+  stopped: "<%= t('watch.stopped') %>",
+  noChanges: "<%= t('watch.noChanges') %>",
+  changes: "<%= t('watch.changes') %>",
+};
+
+function esc(text) {
+  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+socket.on('connect', function() {
+  <% repos.forEach(function(repo) { %>
+  socket.emit('join-repo', <%= repo.id %>);
+  <% }); %>
+});
+
+socket.on('sync-log', function(data) {
+  var gc = document.getElementById('globalConsole');
+  var div = document.createElement('div');
+  div.className = data.type === 'success' ? 'success' : data.type === 'danger' ? 'danger' : data.type === 'warning' ? 'warning' : data.type === 'info' ? 'info' : 'muted';
+  div.textContent = data.msg;
+  gc.appendChild(div);
+  gc.scrollTop = gc.scrollHeight;
+});
+
+socket.on('repo-update', function(data) {
+  updateRepoPanel(data);
+});
+
+function updateRepoPanel(data) {
+  var st = data.status;
+  var gd = data.gitData;
+  var id = data.id;
+
+  var dot = document.getElementById('dot-' + id);
+  if (dot) {
+    dot.className = 'watch-status-dot ' + st.color;
+  }
+
+  var badges = document.getElementById('badges-' + id);
+  if (badges) {
+    var h = '';
+    if (st.changes > 0) h += '<span class="badge badge-yellow">' + st.changes + ' ' + STR.changes + '</span> ';
+    if (st.behindCount > 0) h += '<span class="badge badge-cyan">' + st.behindCount + ' &#8595;</span> ';
+    if (st.aheadCount > 0) h += '<span class="badge badge-green">' + st.aheadCount + ' &#8593;</span> ';
+    if (st.changes===0 && st.behindCount===0 && st.aheadCount===0) h += '<span class="badge badge-green">OK</span>';
+    badges.innerHTML = h;
+  }
+
+  var consoleEl = document.getElementById('console-' + id);
+  if (consoleEl) {
+    var lines = [];
+    if (gd.gitStatus) {
+      lines.push('<span class="muted">-- git status --</span>');
+      gd.gitStatus.split('\n').forEach(function(l) {
+        if (l.indexOf('A\t')===0||l.indexOf('A ')===0) lines.push('<span class="added">' + esc(l) + '</span>');
+        else if (l.indexOf('M\t')===0||l.indexOf('M ')===0) lines.push('<span class="modified">' + esc(l) + '</span>');
+        else if (l.indexOf('D\t')===0||l.indexOf('D ')===0) lines.push('<span class="deleted">' + esc(l) + '</span>');
+        else if (l.indexOf('R')===0) lines.push('<span class="renamed">' + esc(l) + '</span>');
+        else if (l.indexOf('??')===0) lines.push('<span class="warning">' + esc(l) + '</span>');
+        else lines.push(esc(l));
+      });
+    }
+    if (gd.changedFiles) {
+      lines.push('<span class="muted">-- recente wijzigingen --</span>');
+      gd.changedFiles.split('\n').forEach(function(l) {
+        if (l.indexOf('A\t')===0||l.indexOf('A ')===0) lines.push('<span class="added">' + esc(l) + '</span>');
+        else if (l.indexOf('M\t')===0||l.indexOf('M ')===0) lines.push('<span class="modified">' + esc(l) + '</span>');
+        else if (l.indexOf('D\t')===0||l.indexOf('D ')===0) lines.push('<span class="deleted">' + esc(l) + '</span>');
+        else if (l.indexOf('R')===0) lines.push('<span class="renamed">' + esc(l) + '</span>');
+        else lines.push(esc(l));
+      });
+    }
+    if (lines.length === 0) lines.push('<span class="muted">' + STR.noChanges + '</span>');
+    consoleEl.innerHTML = lines.join('\n');
+  }
+}
+
+function toggleWatch() {
+  var btn = document.getElementById('btnToggle');
+  var gc = document.getElementById('globalConsole');
+
+  if (watchActive) {
+    socket.emit('leave-watch');
+    watchActive = false;
+    btn.textContent = STR.start;
+    btn.className = 'btn btn-success';
+    gc.innerHTML = '<span class="muted">' + STR.stopped + '</span>';
+  } else {
+    gc.innerHTML = '';
+    var div = document.createElement('div');
+    div.className = 'info';
+    div.textContent = STR.started;
+    gc.appendChild(div);
+    socket.emit('join-watch');
+    watchActive = true;
+    btn.textContent = STR.stop;
+    btn.className = 'btn btn-danger';
+  }
+}
+</script>
+<%- include('partials/footer') %>

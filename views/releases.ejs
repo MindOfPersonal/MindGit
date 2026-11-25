@@ -1,0 +1,95 @@
+<% var page = 'releases'; %>
+<%- include('partials/header', { title: t('releases.title'), page: 'releases' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('releases.title') %></h1>
+    <p class="page-description"><%= t('releases.subtitle') %></p>
+  </div>
+  <div class="header-actions">
+    <a href="/repos/releases" class="btn btn-primary"><%= t('pr.refresh') %></a>
+    <a href="/repos" class="btn btn-secondary"><%= t('button.back') %></a>
+  </div>
+</div>
+
+<% if (!repoData.length) { %>
+  <div class="empty-state">
+    <div class="empty-icon">&#127991;</div>
+    <h3><%= t('releases.empty') %></h3>
+  </div>
+<% } else { %>
+  <% repoData.forEach(function(entry) { var repo = entry.repo; %>
+    <div class="section">
+      <div class="section-title"><%= repo.name %> <span class="muted" style="font-size:12px;font-weight:400;">(<%= repo.remote %>)</span></div>
+      <% if (entry.error) { %>
+        <div class="alert alert-danger" style="margin-bottom:12px;"><%= entry.error %></div>
+      <% } %>
+
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        <div style="flex:2;min-width:280px;">
+          <div class="muted" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;"><%= t('releases.title') %></div>
+          <% if (!entry.releases.length) { %>
+            <div class="muted" style="font-size:13px;"><%= t('releases.empty') %></div>
+          <% } else { %>
+            <% entry.releases.forEach(function(rel) { %>
+              <div class="release-card">
+                <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                  <div>
+                    <span class="badge badge-accent"><%= rel.tag %></span>
+                    <a href="<%= rel.htmlUrl %>" target="_blank" rel="noopener" style="font-weight:600;margin-left:6px;"><%= rel.name %></a>
+                    <% if (rel.draft) { %><span class="badge badge-neutral"><%= t('releases.draft') %></span><% } %>
+                    <% if (rel.prerelease) { %><span class="badge badge-orange"><%= t('releases.prerelease') %></span><% } %>
+                  </div>
+                  <form method="POST" action="/repos/releases/<%= repo.id %>/<%= rel.id %>/delete" onsubmit="return confirm('<%= t('releases.confirmDelete') %>')">
+                    <%- csrfInput %>
+                    <button type="submit" class="btn btn-danger btn-sm"><%= t('releases.delete') %></button>
+                  </form>
+                </div>
+                <div class="muted" style="font-size:12px;margin-top:6px;">
+                  <%= rel.author %> &middot; <%= new Date(rel.publishedAt || rel.createdAt).toLocaleDateString(lang === 'en' ? 'en-US' : 'nl-NL') %>
+                </div>
+              </div>
+            <% }); %>
+          <% } %>
+        </div>
+
+        <div style="flex:1;min-width:240px;">
+          <div class="muted" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;"><%= t('releases.tags') %></div>
+          <div class="chip-row" style="margin-bottom:16px;">
+            <% if (!entry.tags.length) { %><span class="muted" style="font-size:13px;"><%= t('releases.noTags') %></span><% } %>
+            <% entry.tags.forEach(function(tag) { %><span class="chip"><%= tag %></span><% }); %>
+          </div>
+
+          <details class="repo-collapse">
+            <summary class="repo-collapse-header">
+              <span class="repo-collapse-chevron">&#9656;</span>
+              <span class="repo-collapse-header-title">+ <%= t('releases.create') %></span>
+            </summary>
+            <div class="repo-collapse-body">
+              <form method="POST" action="/repos/releases/<%= repo.id %>/create">
+                <%- csrfInput %>
+                <div class="form-group">
+                  <label><%= t('releases.tag') %> *</label>
+                  <input type="text" name="tag" placeholder="v1.0.0" required>
+                </div>
+                <div class="form-group">
+                  <label><%= t('releases.name') %></label>
+                  <input type="text" name="name" placeholder="v1.0.0">
+                </div>
+                <div class="form-group">
+                  <label><%= t('releases.notes') %></label>
+                  <textarea name="body" rows="4"></textarea>
+                </div>
+                <label class="checkbox-row"><input type="checkbox" name="prerelease"> <%= t('releases.prerelease') %></label>
+                <label class="checkbox-row"><input type="checkbox" name="draft"> <%= t('releases.draft') %></label>
+                <button type="submit" class="btn btn-primary"><%= t('releases.submit') %></button>
+              </form>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  <% }); %>
+<% } %>
+
+<%- include('partials/footer') %>

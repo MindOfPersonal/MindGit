@@ -1,0 +1,63 @@
+# Secrets & environment files
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+
+# CLI config
+github-repos.json
+
+# Session & cookie files
+*.session
+*.cookie
+
+# Dependencies
+node_modules/
+agent/node_modules/
+
+# Build artefacten
+dist/
+build/
+.cache/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+pids/
+
+# Editor / IDE
+.DS_Store
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.history/
+
+# OS
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# Database
+*.sql.bak
+*.dump
+*.sqlite
+*.db-journal
+
+# Local repos map
+MindGitRepos/
+
+# Test output
+test-results/
+.playwright/
+
+# Development
+Dev/
+
+# Database back-ups
+backups/

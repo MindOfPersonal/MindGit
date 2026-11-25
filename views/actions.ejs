@@ -1,0 +1,75 @@
+<% var page = 'actions'; %>
+<%- include('partials/header', { title: t('actions.title'), page: 'actions' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('actions.title') %></h1>
+    <p class="page-description"><%= t('actions.subtitle') %></p>
+  </div>
+  <div class="header-actions">
+    <a href="/repos/actions" class="btn btn-primary"><%= t('pr.refresh') %></a>
+    <a href="/repos" class="btn btn-secondary"><%= t('button.back') %></a>
+  </div>
+</div>
+
+<% var withRuns = repoData.filter(function(e) { return e.runs.length > 0 || e.error; }); %>
+<% if (!withRuns.length) { %>
+  <div class="empty-state">
+    <div class="empty-icon">&#9881;</div>
+    <h3><%= t('actions.empty') %></h3>
+  </div>
+<% } else { %>
+  <% withRuns.forEach(function(entry) { var repo = entry.repo; %>
+    <div class="section">
+      <div class="section-title"><%= repo.name %> <span class="muted" style="font-size:12px;font-weight:400;">(<%= repo.remote %>)</span></div>
+      <% if (entry.error) { %>
+        <div class="alert alert-danger" style="margin-bottom:12px;"><%= entry.error %></div>
+      <% } else if (!entry.runs.length) { %>
+        <div class="muted" style="font-size:13px;"><%= t('actions.noRuns') %></div>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th><%= t('actions.workflow') %></th>
+                <th><%= t('actions.status') %></th>
+                <th><%= t('actions.branch') %></th>
+                <th><%= t('actions.event') %></th>
+                <th><%= t('actions.actor') %></th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% entry.runs.forEach(function(run) { %>
+                <tr>
+                  <td>#<%= run.runNumber %> <%= run.name %></td>
+                  <td>
+                    <span class="badge <%= run.conclusion === 'success' ? 'badge-green' : (run.conclusion === 'failure' ? 'badge-red' : 'badge-neutral') %>">
+                      <%= run.conclusion || run.status %>
+                    </span>
+                  </td>
+                  <td><code><%= run.branch %></code></td>
+                  <td><%= run.event %></td>
+                  <td><%= run.actor %></td>
+                  <td>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                      <a href="<%= run.htmlUrl %>" target="_blank" rel="noopener" class="btn btn-secondary btn-sm"><%= t('actions.view') %></a>
+                      <% if (run.conclusion === 'failure') { %>
+                        <form method="POST" action="/repos/actions/<%= repo.id %>/<%= run.id %>/rerun">
+                          <%- csrfInput %>
+                          <button type="submit" class="btn btn-primary btn-sm"><%= t('actions.rerun') %></button>
+                        </form>
+                      <% } %>
+                    </div>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  <% }); %>
+<% } %>
+
+<%- include('partials/footer') %>

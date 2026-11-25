@@ -1,0 +1,305 @@
+<% var page = 'create'; %>
+<%- include('partials/header', { title: t('page.create.title'), page: 'create' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('page.create.title') %></h1>
+    <p class="page-description"><%= t('page.create.subtitle') %></p>
+  </div>
+</div>
+
+<div class="form-container" style="max-width:680px;">
+  <div class="form-card">
+    <h2><%= t('create.detailsTitle') %></h2>
+    <p class="subtitle"><%= t('create.detailsDesc') %></p>
+
+    <% if (accounts.length === 0) { %>
+      <div class="alert alert-danger" style="margin-bottom:16px;" id="noAccountAlert">
+        <span id="noAccountPrefix"></span> <a href="/repos/settings"><%= t('alert.noAccountsLink') %></a> <span id="noAccountSuffix"></span>
+      </div>
+    <% } %>
+
+    <form method="POST" action="/repos/create">
+      <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+      <div class="form-group">
+        <label for="agentId"><%= t('create.target') || 'Doel (agent)' %></label>
+        <select id="agentId" name="agentId">
+          <option value=""><%= t('create.serverDefault') || 'Hoofd server (deze server)' %></option>
+          <% if (typeof nodes !== 'undefined' && nodes.length) { nodes.forEach(function(n) { %>
+            <option value="<%= n.id %>"><%= n.name %> (<%= n.platform %>)</option>
+          <% }); } %>
+        </select>
+        <span class="help-text" id="agentHelp"><%= t('create.targetHint') || 'Kies een online agent om de repo op die machine aan te maken. Alleen online agents worden getoond.' %></span>
+      </div>
+      <div class="form-group">
+        <label for="accountId"><%= t('field.account') %> *</label>
+        <select id="accountId" name="accountId" required <%= accounts.length === 0 ? 'disabled' : '' %>>
+          <% accounts.forEach(function(acc) { %>
+            <option value="<%= acc.id %>" <%= acc.is_default ? 'selected' : '' %>><%= acc.label %> (@<%= acc.github_user %>)<%= acc.is_default ? ' [default]' : '' %></option>
+          <% }); %>
+        </select>
+        <span class="help-text"><%= t('field.accountHint') %></span>
+      </div>
+      <div class="fb-full-preview" id="fbRemotePreview" style="display:none;margin-top:-4px;margin-bottom:12px;padding:8px 12px;background:var(--accent-glow);border-radius:6px;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--accent);">
+        <span id="remoteLabel">Remote</span>: <strong id="fbRemotePreviewPath"></strong>
+      </div>
+      <div class="form-group">
+        <label for="repoName"><%= t('field.repoName') %></label>
+        <input type="text" id="repoName" name="repoName" required autofocus placeholder="<%= t('placeholder.repoName') %>">
+      </div>
+      <div class="form-group">
+        <label for="description"><%= t('field.description') %></label>
+        <input type="text" id="description" name="description" placeholder="<%= t('placeholder.description') %>">
+      </div>
+      <div class="form-group">
+        <label for="groupName"><%= t('field.group') %></label>
+        <input type="text" id="groupName" name="groupName" placeholder="<%= t('placeholder.group') %>">
+        <span class="help-text"><%= t('field.groupHint') %></span>
+      </div>
+      <div class="form-group">
+        <label class="checkbox-group">
+          <input type="checkbox" name="isPrivate">
+          <span><%= t('field.private') %></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="localPath"><%= t('field.localPath') %></label>
+        <input type="text" id="localPath" name="localPath" required placeholder="<%= t('placeholder.localPath') %>" autocomplete="off">
+        <span class="help-text" id="pathHelp"><%= t('field.localPathHint') %></span>
+        <div class="folder-browser" id="folderBrowser">
+          <div class="fb-breadcrumbs" id="fbBreadcrumbs"></div>
+          <div class="fb-list" id="fbList">
+            <div class="fb-loading"><%= t('loader.loading') %></div>
+          </div>
+          <div class="fb-selected-path" id="fbSelectedPath" style="display:none">
+            <span>&#128193;</span>
+            <span id="fbSelectedText"></span>
+            <button type="button" class="fb-select-btn" onclick="selectFolder()"><%= t('button.select') %></button>
+          </div>
+        </div>
+        <div class="fb-full-preview" id="fbFullPreview" style="display:none;margin-top:8px;padding:8px 12px;background:var(--accent-glow);border-radius:6px;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--accent);">
+          <span><%= t('field.fullPathPrefix') %></span><strong id="fbFullPath"></strong>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-success"><%= t('button.create') %></button>
+        <a href="/repos" class="btn btn-secondary"><%= t('button.cancel') %></a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Vul no-account alert met vertaalde tekst (split omdat er een link tussenin staat)
+(function() {
+  var prefix = document.getElementById('noAccountPrefix');
+  var suffix = document.getElementById('noAccountSuffix');
+  if (prefix && suffix) {
+    var raw = "<%= t('alert.noAccounts') %>";
+    var parts = raw.split('{link}');
+    prefix.textContent = parts[0] || '';
+    suffix.textContent = parts.length > 1 ? parts[1] : '';
+  }
+  var remoteLabel = document.getElementById('remoteLabel');
+  if (remoteLabel) remoteLabel.textContent = "github.com".indexOf('://') === -1 ? 'Remote' : 'Remote';
+  // Always set Remote label (same in both langs, but kept explicit)
+  if (remoteLabel) remoteLabel.textContent = 'Remote';
+})();
+
+var currentPath = '<%= typeof browseRoot !== "undefined" && browseRoot ? browseRoot : "/home" %>';
+var browseRootPath = currentPath;
+var selectedFolder = null;
+var showHidden = false;
+var agentId = ''; // '' = server, anders node-id
+
+function L(key) { return (window.I18N && window.I18N[key]) || key; }
+
+function esc(text) {
+  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function browseEndpoint(dirPath) {
+  if (agentId) return '/repos/nodes/' + agentId + '/browse?path=' + encodeURIComponent(dirPath);
+  return '/repos/browse?path=' + encodeURIComponent(dirPath);
+}
+
+function relParts(fullPath, root) {
+  var r = String(root || '/').replace(/[\/\\]+$/, '');
+  if (r === '/') return String(fullPath).split(/[\/\\]/).filter(Boolean);
+  var fullNorm = String(fullPath).replace(/\\/g, '/');
+  var rootNorm = r.replace(/\\/g, '/');
+  if (fullNorm === rootNorm) return [];
+  if (fullNorm.indexOf(rootNorm + '/') === 0) return fullNorm.slice(rootNorm.length).split('/').filter(Boolean);
+  return fullNorm.split('/').filter(Boolean);
+}
+
+function buildBreadcrumbs(fullPath) {
+  var root = browseRootPath || '/';
+  var parts = relParts(fullPath, root);
+  var rootLabel = root === '/' ? '/' : root;
+  var html = '<a href="#" onclick="navigateTo(\'' + String(root).replace(/\\/g, '/').replace(/'/g, "\\'") + '\')">' + esc(rootLabel) + '</a>';
+  var built = String(root).replace(/[\/\\]+$/, '');
+  for (var i = 0; i < parts.length; i++) {
+    built += '/' + parts[i];
+    if (i === parts.length - 1) {
+      html += '<span class="fb-sep">/</span><span class="fb-current">' + esc(parts[i]) + '</span>';
+    } else {
+      html += '<span class="fb-sep">/</span><a href="#" onclick="navigateTo(\'' + built.replace(/'/g, "\\'") + '\')">' + esc(parts[i]) + '</a>';
+    }
+  }
+  return html;
+}
+
+async function navigateTo(dirPath) {
+  currentPath = dirPath;
+  document.getElementById('fbBreadcrumbs').innerHTML = buildBreadcrumbs(dirPath);
+  document.getElementById('fbList').innerHTML = '<div class="fb-loading">' + L('loaderLoading') + '</div>';
+  document.getElementById('fbSelectedPath').style.display = 'none';
+  selectedFolder = null;
+
+  try {
+    var res = await fetch(browseEndpoint(dirPath));
+    var data = await res.json();
+    if (data.roots && data.roots.length && !agentId && currentPath === browseRootPath) {
+      // (niet gebruikt voor server-modus; root is al ingesteld)
+    }
+    renderEntries(data);
+  } catch (e) {
+    document.getElementById('fbList').innerHTML = '<div class="fb-loading">' + L('loaderError') + '</div>';
+  }
+}
+
+function renderEntries(data) {
+  var list = document.getElementById('fbList');
+  if (data.error) {
+    list.innerHTML = '<div class="fb-loading">' + data.error + '</div>';
+    return;
+  }
+  if (data.entries.length === 0) {
+    list.innerHTML = '<div class="fb-loading">' + L('loaderEmpty') + '</div>';
+    return;
+  }
+
+  var html = '';
+  if (data.parent !== null && data.parent !== data.path) {
+    var safeParent = data.parent.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    html += '<div class="fb-entry" onclick="navigateTo(\'' + safeParent + '\')">';
+    html += '<span class="fb-icon">&#8617;</span>';
+    html += '<span class="fb-name" style="color:var(--text-muted)">' + L('loaderBack') + '</span>';
+    html += '</div>';
+  }
+
+for (var i = 0; i < data.entries.length; i++) {
+      var e = data.entries[i];
+      if (e.type === 'dir') {
+        var safePath = e.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        html += '<div class="fb-entry' + (selectedFolder === e.path ? ' selected' : '') + '" onclick="openFolder(\'' + safePath + '\')" ondblclick="navigateTo(\'' + safePath + '\')" data-path="' + safePath + '">';
+        html += '<span class="fb-icon">&#128193;</span>';
+        html += '<span class="fb-name">' + escapeHtml(e.name) + '/</span>';
+        if (e.hasGit) html += '<span class="fb-tag git-tag">GIT</span>';
+        html += '</div>';
+      } else {
+        html += '<div class="fb-entry" style="opacity:0.5">';
+        html += '<span class="fb-icon">&#128196;</span>';
+        html += '<span class="fb-name">' + escapeHtml(e.name) + '</span>';
+        html += '</div>';
+      }
+    }
+  list.innerHTML = html;
+}
+
+function openFolder(folderPath) {
+  selectedFolder = folderPath;
+  document.getElementById('fbSelectedPath').style.display = 'flex';
+  document.getElementById('fbSelectedText').textContent = folderPath;
+  document.getElementById('localPath').value = folderPath;
+  updateFullPath();
+
+  var entries = document.querySelectorAll('.fb-entry');
+  for (var i = 0; i < entries.length; i++) {
+    entries[i].classList.toggle('selected', entries[i].dataset.path === folderPath);
+  }
+}
+
+function selectFolder() {
+  if (selectedFolder) {
+    document.getElementById('localPath').value = selectedFolder;
+    updateFullPath();
+  }
+}
+
+function updateFullPath() {
+  var p = document.getElementById('localPath').value;
+  var n = document.getElementById('repoName').value.trim();
+  var preview = document.getElementById('fbFullPreview');
+  var full = document.getElementById('fbFullPath');
+
+  var accountSelect = document.getElementById('accountId');
+  var selected = accountSelect && accountSelect.selectedIndex >= 0
+    ? accountSelect.options[accountSelect.selectedIndex].text
+    : '';
+  var ownerMatch = selected.match(/@([\w.-]+)/);
+  var owner = ownerMatch ? ownerMatch[1] : '?';
+
+  var remotePreview = document.getElementById('fbRemotePreview');
+  var remoteFull = document.getElementById('fbRemotePreviewPath');
+  if (remotePreview && remoteFull) {
+    if (n) {
+      remotePreview.style.display = 'block';
+      remoteFull.textContent = 'github.com/' + owner + '/' + n;
+    } else {
+      remotePreview.style.display = 'none';
+    }
+  }
+
+  if (p && n) {
+    preview.style.display = 'block';
+    full.textContent = p.replace(/\/+$/, '') + '/' + n;
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+document.getElementById('repoName').addEventListener('input', updateFullPath);
+document.getElementById('localPath').addEventListener('input', updateFullPath);
+document.getElementById('accountId').addEventListener('change', updateFullPath);
+
+var agentSelect = document.getElementById('agentId');
+agentSelect.addEventListener('change', function() {
+  agentId = this.value;
+  selectedFolder = null;
+  document.getElementById('localPath').value = '';
+  document.getElementById('fbSelectedPath').style.display = 'none';
+  updateFullPath();
+
+  if (agentId) {
+    document.getElementById('fbList').innerHTML = '<div class="fb-loading">' + L('loaderLoading') + '</div>';
+    fetch('/repos/nodes/' + agentId + '/browse?path=')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) {
+          document.getElementById('fbList').innerHTML = '<div class="fb-loading">' + (data.error || L('loaderError')) + '</div>';
+          document.getElementById('agentHelp').innerHTML = '<span style="color:var(--red)">' + (data.error || L('loaderError')) + ' — werk de agent bij via de Nodes-pagina (Agent-pakket downloaden) als dit blijft.</span>';
+          return;
+        }
+        browseRootPath = (data.roots && data.roots.length) ? data.roots[0] : (data.path || '/');
+        currentPath = browseRootPath;
+        navigateTo(currentPath);
+      })
+      .catch(function() {
+        document.getElementById('fbList').innerHTML = '<div class="fb-loading">' + L('loaderError') + '</div>';
+      });
+  } else {
+    browseRootPath = '<%- typeof browseRoot !== "undefined" && browseRoot ? JSON.stringify(browseRoot) : "/home" %>';
+    currentPath = browseRootPath;
+    navigateTo(currentPath);
+  }
+});
+
+function escapeHtml(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+navigateTo(currentPath);
+</script>
+<%- include('partials/footer') %>

@@ -1,0 +1,22 @@
+<% var page = ''; %>
+<!DOCTYPE html>
+<html lang="<%= typeof lang !== 'undefined' ? lang : 'nl' %>">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= statusCode %> - <%= t('error.titleSuffix') %></title>
+  <link rel="stylesheet" href="/style.css?v=4">
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-card" style="text-align:center;">
+      <div class="login-logo">
+        <div class="icon" style="font-size:48px;color:var(--red);"><%= statusCode %></div>
+        <h1><%= t('error.heading') %></h1>
+        <p class="login-sub"><%= message %></p>
+      </div>
+      <a href="/repos" class="btn btn-primary btn-block"><%= t('error.backToDashboard') %></a>
+    </div>
+  </div>
+</body>
+</html>

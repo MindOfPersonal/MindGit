@@ -1,0 +1,114 @@
+<% var page = 'backup'; %>
+<%- include('partials/header', { title: t('backup.title'), page: 'backup' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('backup.title') %></h1>
+    <p class="page-description"><%= t('backup.subtitle') %></p>
+  </div>
+  <div class="header-actions">
+    <form method="POST" action="/repos/settings/backup/create" onsubmit="this.querySelector('button').disabled = true; this.querySelector('button').textContent = '<%= t('backup.creating') %>';">
+      <%- csrfInput %>
+      <button type="submit" class="btn btn-success"><%= t('backup.create') %></button>
+    </form>
+    <a href="/repos" class="btn btn-secondary"><%= t('button.back') %></a>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title"><%= t('backup.exports') %></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <a href="/repos/export/repos.json" class="btn btn-secondary btn-sm"><%= t('backup.exportRepos') %></a>
+    <a href="/repos/export/sync-logs.csv" class="btn btn-secondary btn-sm"><%= t('backup.exportLogs') %></a>
+    <a href="/repos/export/settings.json" class="btn btn-secondary btn-sm"><%= t('backup.exportSettings') %></a>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title"><%= t('backup.auto') %></div>
+  <div class="muted" style="font-size:13px;line-height:1.8;">
+    <div><%= t('backup.retention') %>: <strong><%= retentionDays %> <%= t('backup.retentionDays') %></strong></div>
+    <div><%= t('backup.auto') %>: <strong><%= intervalHours > 0 ? t('backup.autoEvery') + ' ' + intervalHours + ' ' + t('backup.hours') : t('backup.autoOff') %></strong></div>
+    <div><%= t('backup.dir') %>: <code><%= backupDir %></code></div>
+    <div style="margin-top:8px;"><%= t('backup.note') %></div>
+  </div>
+</div>
+
+<% if (error) { %>
+  <div class="alert alert-danger"><%= error %></div>
+<% } %>
+
+<div class="section">
+  <div class="section-title"><%= t('backup.title') %></div>
+  <% if (!backups.length) { %>
+    <div class="muted"><%= t('backup.empty') %></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th><%= t('backup.name') %></th>
+            <th><%= t('backup.size') %></th>
+            <th><%= t('backup.created') %></th>
+            <th><%= t('backup.actions') %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% backups.forEach(function(b) { %>
+            <tr>
+              <td>
+                <code><%= b.name %></code>
+                <% if (b.manifest && b.manifest.tableCounts) { %>
+                  <div class="muted" style="font-size:11px;margin-top:4px;">
+                    <%= Object.keys(b.manifest.tableCounts).length %> tabellen
+                  </div>
+                <% } %>
+              </td>
+              <td><%= Math.round(b.size / 1024) %> KB</td>
+              <td><%= new Date(b.createdAt).toLocaleString(lang === 'en' ? 'en-US' : 'nl-NL') %></td>
+              <td>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <a href="/repos/settings/backup/download/<%= encodeURIComponent(b.name) %>" class="btn btn-secondary btn-sm"><%= t('backup.download') %></a>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="validateBackup('<%= b.name %>')"><%= t('backup.validate') %></button>
+                  <form method="POST" action="/repos/settings/backup/<%= encodeURIComponent(b.name) %>/delete" onsubmit="return confirm('<%= t('backup.confirmDelete') %>')">
+                    <%- csrfInput %>
+                    <button type="submit" class="btn btn-danger btn-sm"><%= t('backup.delete') %></button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<script>
+async function validateBackup(name) {
+  openModal('<%= t('backup.validate') %>', '<span class="muted"><%= t('staging.loading') %></span>');
+  try {
+    var res = await fetch('/repos/settings/backup/' + encodeURIComponent(name) + '/validate', { method: 'POST' });
+    var data = await res.json();
+    var html = '<div style="font-weight:600;margin-bottom:12px;color:' + (data.ok ? 'var(--green)' : 'var(--red)') + '">' + (data.ok ? '<%= t('backup.valid') %>' : '<%= t('backup.invalid') %>') + '</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+    (data.checks || []).forEach(function(c) {
+      var icon = c.ok ? '&#10003;' : '&#10007;';
+      var color = c.ok ? 'var(--green)' : 'var(--red)';
+      html += '<tr><td style="padding:6px 8px;color:' + color + ';width:24px;">' + icon + '</td>';
+      html += '<td style="padding:6px 8px;">' + escapeHtml(c.label || '') + '<div class="muted" style="font-size:11px;">' + escapeHtml(c.detail || '') + '</div></td></tr>';
+    });
+    html += '</table>';
+    if (data.sha256) html += '<div class="muted" style="margin-top:12px;font-size:11px;word-break:break-all;">SHA-256: ' + escapeHtml(data.sha256) + '</div>';
+    document.getElementById('modalBody').innerHTML = html;
+  } catch (err) {
+    document.getElementById('modalBody').innerHTML = '<span class="muted">' + escapeHtml(err.message) + '</span>';
+  }
+}
+
+function escapeHtml(text) {
+  return String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+</script>
+
+<%- include('partials/footer') %>

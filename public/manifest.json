@@ -1,0 +1,21 @@
+{
+  "name": "MindGit - Repository Manager",
+  "short_name": "MindGit",
+  "description": "Self-hosted Git repository manager with multi-account GitHub support",
+  "start_url": "/repos",
+  "display": "standalone",
+  "background_color": "#05050d",
+  "theme_color": "#8b7cff",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["developer-tools", "productivity"],
+  "lang": "nl",
+  "dir": "auto"
+}

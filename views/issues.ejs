@@ -1,0 +1,123 @@
+<% var page = 'issues'; %>
+<%- include('partials/header', { title: t('issues.title'), page: 'issues' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('issues.title') %></h1>
+    <p class="page-description"><%= t('issues.subtitle') %></p>
+  </div>
+  <div class="header-actions">
+    <a href="/repos/issues?state=<%= state === 'open' ? 'closed' : 'open' %><%= repoFilter ? '&repo=' + repoFilter : '' %>" class="btn btn-secondary">
+      <%= state === 'open' ? t('issues.closed') : t('issues.open') %>
+    </a>
+    <a href="/repos" class="btn btn-secondary"><%= t('button.back') %></a>
+  </div>
+</div>
+
+<div class="section">
+  <form method="GET" action="/repos/issues" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+    <div class="form-group" style="margin:0;min-width:220px;">
+      <label for="repoFilter"><%= t('field.repoName') %></label>
+      <select id="repoFilter" name="repo" onchange="this.form.submit()">
+        <option value=""><%= t('issues.allRepos') %></option>
+        <% repos.forEach(function(r) { %>
+          <option value="<%= r.id %>" <%= repoFilter === r.id ? 'selected' : '' %>><%= r.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <input type="hidden" name="state" value="<%= state %>">
+    <noscript><button type="submit" class="btn btn-secondary"><%= t('filters.apply') %></button></noscript>
+  </form>
+</div>
+
+<details class="repo-collapse" style="margin-bottom:20px;">
+  <summary class="repo-collapse-header">
+    <span class="repo-collapse-chevron">&#9656;</span>
+    <span class="repo-collapse-header-title">+ <%= t('issues.create') %></span>
+  </summary>
+  <div class="repo-collapse-body">
+    <form method="POST" action="/repos/issues/<%= (repos[0] && repos[0].id) || 0 %>/create" id="createIssueForm" class="section" style="margin:0;">
+      <%- csrfInput %>
+      <div class="form-group">
+        <label for="issueRepo"><%= t('field.repoName') %></label>
+        <select id="issueRepo" name="repoId" required>
+          <% repos.forEach(function(r) { if (!r.remote) return; %>
+            <option value="<%= r.id %>"><%= r.name %> (<%= r.remote %>)</option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="issueTitle"><%= t('issues.titleField') %></label>
+        <input type="text" id="issueTitle" name="title" required maxlength="256">
+      </div>
+      <div class="form-group">
+        <label for="issueBody"><%= t('issues.body') %></label>
+        <textarea id="issueBody" name="body" rows="4"></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary"><%= t('issues.submit') %></button>
+    </form>
+  </div>
+</details>
+
+<% if (!issues.length) { %>
+  <div class="empty-state">
+    <div class="empty-icon">&#128204;</div>
+    <h3><%= t('issues.empty') %></h3>
+  </div>
+<% } else { %>
+  <div class="issue-list">
+    <% issues.forEach(function(issue) { %>
+      <div class="issue-card">
+        <div class="issue-head">
+          <div>
+            <span class="badge <%= issue.state === 'open' ? 'badge-green' : 'badge-neutral' %>"><%= issue.state %></span>
+            <a href="<%= issue.htmlUrl %>" target="_blank" rel="noopener" class="issue-title">#<%= issue.number %> <%= issue.title %></a>
+          </div>
+          <span class="muted" style="font-size:12px;"><%= issue.repoName %></span>
+        </div>
+        <div class="muted" style="font-size:12px;margin-bottom:8px;">
+          <%= t('issues.by') %> @<%= issue.author %> &middot;
+          <%= issue.comments %> <%= t('issues.comments') %>
+          <% if (issue.labels.length) { %>
+            &middot; <% issue.labels.forEach(function(label) { %><span class="chip chip-sm"><%= label %></span><% }); %>
+          <% } %>
+        </div>
+        <% if (issue.body) { %>
+          <div class="issue-body"><%= issue.body.length > 400 ? issue.body.slice(0, 400) + '...' : issue.body %></div>
+        <% } %>
+        <div class="issue-actions">
+          <% if (issue.state === 'open') { %>
+            <form method="POST" action="/repos/issues/<%= issue.repoId %>/<%= issue.number %>/close">
+              <%- csrfInput %>
+              <button type="submit" class="btn btn-secondary btn-sm"><%= t('issues.close') %></button>
+            </form>
+          <% } else { %>
+            <form method="POST" action="/repos/issues/<%= issue.repoId %>/<%= issue.number %>/reopen">
+              <%- csrfInput %>
+              <button type="submit" class="btn btn-secondary btn-sm"><%= t('issues.reopen') %></button>
+            </form>
+          <% } %>
+          <form method="POST" action="/repos/issues/<%= issue.repoId %>/<%= issue.number %>/comment" class="issue-comment-form">
+            <%- csrfInput %>
+            <input type="text" name="body" placeholder="<%= t('issues.commentPlaceholder') %>" required>
+            <button type="submit" class="btn btn-primary btn-sm"><%= t('issues.send') %></button>
+          </form>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+<% } %>
+
+<script>
+(function() {
+  var form = document.getElementById('createIssueForm');
+  var select = document.getElementById('issueRepo');
+  if (form && select) {
+    function sync() { form.action = '/repos/issues/' + select.value + '/create'; }
+    select.addEventListener('change', sync);
+    sync();
+  }
+})();
+</script>
+
+<%- include('partials/footer') %>

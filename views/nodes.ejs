@@ -1,0 +1,258 @@
+<% var page = 'nodes'; %>
+<%- include('partials/header', { title: t('nodes.title') || 'Nodes', page: 'nodes' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('nodes.title') || 'Nodes (Agents)' %></h1>
+    <p class="page-description"><%= t('nodes.subtitle') || 'Beheer agents die repositories lokaal synchroniseren op verschillende machines.' %></p>
+  </div>
+</div>
+
+<% if (nodeKey) { %>
+<div class="alert alert-success" style="margin-bottom: 20px;">
+  <strong>Nieuwe node aangemaakt!</strong><br>
+  <small>Node Key (sleep deze veilig op je doel-machine):</small><br>
+  <code style="font-size:14px;word-break:break-all;margin-top:8px;display:block;"><%= nodeKey %></code>
+  <textarea id="nodeKeyTextarea" style="display:none;"><%- nodeKey %></textarea>
+  <button class="btn btn-secondary btn-sm" onclick="downloadNodeKey()" style="margin-left:10px;margin-top:10px;">Download Key</button>
+  <span id="copiedMsg" class="muted" style="margin-left:8px;display:none;">Gekopieerd!</span>
+</div>
+<% } %>
+
+<div class="form-container" style="max-width: 1000px;">
+
+  <div class="form-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2><%= t('nodes.agentDownloads') || 'Agent downloaden' %></h2>
+    </div>
+    <p class="help-text" style="margin-bottom:12px;"><%- t('nodes.downloadHint') || 'Download dit bestand op de doel-machine en draai: <code>install-windows.bat --coordinator=&lt;url&gt; --node-key=JOUW_NODE_KEY</code>' %></p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <a class="btn btn-primary" href="/agent/scripts/install-windows.bat" download><%= t('nodes.downloadWindows') || 'Windows installatiescript (.bat)' %></a>
+      <a class="btn btn-secondary" href="/agent/scripts/install-linux.sh" download><%= t('nodes.downloadLinux') || 'Linux/macOS installatiescript (.sh)' %></a>
+      <a class="btn btn-secondary" href="/agent/download"><%= t('nodes.downloadPackage') || 'Agent-pakket (tar.gz)' %></a>
+    </div>
+  </div>
+
+  <div class="form-card" style="margin-top:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2><%= t('nodes.addNode') || 'Node toevoegen' %></h2>
+    </div>
+    <form method="POST" action="/repos/nodes/add">
+      <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label for="nodeName"><%= t('nodes.name') || 'Naam' %> *</label>
+          <input type="text" id="nodeName" name="name" required placeholder="<%= t('nodes.namePlaceholder') || 'bv. Windows PC, Productie Server' %>">
+          <span class="help-text"><%= t('nodes.nameHint') || 'Herkenbare naam voor deze machine.' %></span>
+        </div>
+        <div class="form-group">
+          <label for="nodePlatform"><%= t('nodes.platform') || 'Platform' %></label>
+          <select id="nodePlatform" name="platform">
+            <option value="windows"><%= t('nodes.platformWindows') || 'Windows' %></option>
+            <option value="linux"><%= t('nodes.platformLinux') || 'Linux' %></option>
+            <option value="macos"><%= t('nodes.platformMacOS') || 'macOS' %></option>
+            <option value="unknown" selected><%= t('nodes.platformUnknown') || 'Onbekend/Anders' %></option>
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-success"><%= t('nodes.addNodeBtn') || 'Node toevoegen' %></button>
+      </div>
+    </form>
+  </div>
+
+  <% if (nodes.length === 0) { %>
+  <div class="empty-state" style="padding:40px 20px;text-align:center;">
+    <div class="empty-icon" style="font-size:48px;margin-bottom:16px;">&#128421;</div>
+    <h3><%= t('nodes.emptyTitle') || 'Geen nodes geconfigureerd' %></h3>
+    <p><%= t('nodes.emptyDesc') || 'Voeg hierboven je eerste node toe. Installeer daarna de agent op de doel-machine.' %></p>
+    <div style="margin-top:16px;padding:16px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border);font-size:13px;text-align:left;">
+      <strong><%= t('nodes.quickStart') || 'Snelstart:' %></strong>
+      <ol style="margin:8px 0 0 20px;">
+        <li><%= t('nodes.step1') || 'Klik "Node toevoegen" en geef een naam (bijv. "Mijn Windows PC")' %></li>
+        <li><%= t('nodes.step2') || 'Kopieer de gegenereerde <strong>Node Key</strong>' %></li>
+        <li><%= t('nodes.step3') || 'Op de doel-machine: <code>curl -fsSL <url>/agent/scripts/install-linux.sh | bash -s -- --coordinator=http://jouw-server:3050 --node-key=JOUW_KEY</code>' %></li>
+        <li><%= t('nodes.step4') || 'Maak daarna een repository via de "Nieuwe repo"-pagina en kies deze agent als doel.' %></li>
+      </ol>
+    </div>
+  </div>
+  <% } else { %>
+  <% var onlineNodes = nodes.filter(function(n){ return n.status === 'online'; }); %>
+  <% var offlineNodes = nodes.filter(function(n){ return n.status !== 'online'; }); %>
+
+  <% if (onlineNodes.length) { %>
+  <div class="form-card" style="margin-top:20px;">
+    <details open>
+      <summary class="repo-collapse-header" style="cursor:pointer;">
+        <span class="repo-collapse-chevron">&#9656;</span>
+        <span><%= t('nodes.onlineTitle') || 'Online agents' %></span>
+        <span class="badge badge-green" style="margin-left:8px;"><%= onlineNodes.length %></span>
+      </summary>
+      <div class="repo-collapse-body">
+      <% onlineNodes.forEach(function(node) { %>
+      <div class="form-card" style="margin-top:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 style="margin:0;display:flex;align-items:center;gap:10px;">
+              <%= node.name %>
+              <span class="badge badge-green" style="font-size:11px;padding:2px 8px;">🟢 <%= t('nodes.online') || 'Online' %></span>
+            </h2>
+            <div style="margin-top:4px;font-size:13px;color:var(--text-muted);">
+              <span><%= t('nodes.platform') || 'Platform' %>: <strong><%= node.platform %></strong></span>
+              <% if (node.git_version) { %> | <span>Git: <strong><%= node.git_version %></strong></span> <% } %>
+              <% if (node.last_seen) { %> | <span><%= t('nodes.lastSeen') || 'Laatst gezien' %>: <strong><%= new Date(node.last_seen).toLocaleString() %></strong></span> <% } %>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEditNode(<%= node.id %>)"><%= t('settings.edit') || 'Bewerken' %></button>
+            <form method="POST" action="/repos/nodes/<%= node.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('nodes.confirmDelete') || 'Node verwijderen? Toegewezen repositories worden losgekoppeld.' %>')">
+              <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+              <button type="submit" class="btn btn-danger btn-sm">&#10005;</button>
+            </form>
+          </div>
+        </div>
+        <div class="node-edit-form" id="edit-node-<%= node.id %>" style="display:none;padding:16px;background:var(--bg-card);border-radius:8px;">
+          <form method="POST" action="/repos/nodes/<%= node.id %>/edit">
+            <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+            <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label><%= t('nodes.name') || 'Naam' %></label>
+                <input type="text" name="name" value="<%= node.name %>" required>
+              </div>
+              <div class="form-group">
+                <label><%= t('nodes.platform') || 'Platform' %></label>
+                <select name="platform">
+                  <option value="windows" <%= node.platform === 'windows' ? 'selected' : '' %>><%= t('nodes.platformWindows') || 'Windows' %></option>
+                  <option value="linux" <%= node.platform === 'linux' ? 'selected' : '' %>><%= t('nodes.platformLinux') || 'Linux' %></option>
+                  <option value="macos" <%= node.platform === 'macos' ? 'selected' : '' %>><%= t('nodes.platformMacOS') || 'macOS' %></option>
+                  <option value="unknown" <%= node.platform === 'unknown' ? 'selected' : '' %>><%= t('nodes.platformUnknown') || 'Onbekend/Anders' %></option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label><%= t('nodes.defaultPath') || 'Standaard map (browse-root)' %></label>
+                <input type="text" name="defaultPath" value="<%= node.default_path || '' %>" placeholder="<%= t('nodes.defaultPathPlaceholder') || 'bv. /opt/mindgit-agent/repos of C:\\repos' %>">
+                <span class="help-text"><%= t('nodes.defaultPathHint') || 'De folder-browser op de "Nieuwe repo"-pagina start hier en mag alleen hieronder navigeren.' %></span>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary"><%= t('button.save') %></button>
+              <button type="button" class="btn btn-secondary" onclick="toggleEditNode(<%= node.id %>)"><%= t('button.cancel') %></button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <% }); %>
+      </div>
+    </details>
+  </div>
+  <% } %>
+
+  <% if (offlineNodes.length) { %>
+  <div class="form-card" style="margin-top:20px;">
+    <details>
+      <summary class="repo-collapse-header" style="cursor:pointer;">
+        <span class="repo-collapse-chevron">&#9656;</span>
+        <span><%= t('nodes.offlineTitle') || 'Offline agents' %></span>
+        <span class="badge badge-gray" style="margin-left:8px;"><%= offlineNodes.length %></span>
+      </summary>
+      <div class="repo-collapse-body">
+      <% offlineNodes.forEach(function(node) { %>
+      <div class="form-card" style="margin-top:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 style="margin:0;display:flex;align-items:center;gap:10px;">
+              <%= node.name %>
+              <span class="badge badge-gray" style="font-size:11px;padding:2px 8px;">⚫ <%= t('nodes.offline') || 'Offline' %></span>
+            </h2>
+            <div style="margin-top:4px;font-size:13px;color:var(--text-muted);">
+              <span><%= t('nodes.platform') || 'Platform' %>: <strong><%= node.platform %></strong></span>
+              <% if (node.last_seen) { %> | <span><%= t('nodes.lastSeen') || 'Laatst gezien' %>: <strong><%= new Date(node.last_seen).toLocaleString() %></strong></span> <% } %>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEditNode(<%= node.id %>)"><%= t('settings.edit') || 'Bewerken' %></button>
+            <form method="POST" action="/repos/nodes/<%= node.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('nodes.confirmDelete') || 'Node verwijderen? Toegewezen repositories worden losgekoppeld.' %>')">
+              <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+              <button type="submit" class="btn btn-danger btn-sm">&#10005;</button>
+            </form>
+          </div>
+        </div>
+        <div class="node-edit-form" id="edit-node-<%= node.id %>" style="display:none;padding:16px;background:var(--bg-card);border-radius:8px;">
+          <form method="POST" action="/repos/nodes/<%= node.id %>/edit">
+            <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+            <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label><%= t('nodes.name') || 'Naam' %></label>
+                <input type="text" name="name" value="<%= node.name %>" required>
+              </div>
+              <div class="form-group">
+                <label><%= t('nodes.platform') || 'Platform' %></label>
+                <select name="platform">
+                  <option value="windows" <%= node.platform === 'windows' ? 'selected' : '' %>><%= t('nodes.platformWindows') || 'Windows' %></option>
+                  <option value="linux" <%= node.platform === 'linux' ? 'selected' : '' %>><%= t('nodes.platformLinux') || 'Linux' %></option>
+                  <option value="macos" <%= node.platform === 'macos' ? 'selected' : '' %>><%= t('nodes.platformMacOS') || 'macOS' %></option>
+                  <option value="unknown" <%= node.platform === 'unknown' ? 'selected' : '' %>><%= t('nodes.platformUnknown') || 'Onbekend/Anders' %></option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label><%= t('nodes.defaultPath') || 'Standaard map (browse-root)' %></label>
+                <input type="text" name="defaultPath" value="<%= node.default_path || '' %>" placeholder="<%= t('nodes.defaultPathPlaceholder') || 'bv. /opt/mindgit-agent/repos of C:\\repos' %>">
+                <span class="help-text"><%= t('nodes.defaultPathHint') || 'De folder-browser op de "Nieuwe repo"-pagina start hier en mag alleen hieronder navigeren.' %></span>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary"><%= t('button.save') %></button>
+              <button type="button" class="btn btn-secondary" onclick="toggleEditNode(<%= node.id %>)"><%= t('button.cancel') %></button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <% }); %>
+      </div>
+    </details>
+  </div>
+  <% } %>
+  <% } %>
+</div>
+
+<script>
+function toggleEditNode(id) {
+  var el = document.getElementById('edit-node-' + id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function downloadNodeKey() {
+  var textarea = document.getElementById('nodeKeyTextarea');
+  if (textarea && textarea.value) {
+    var blob = new Blob([textarea.value], { type: 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'node-key.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    var msg = document.getElementById('copiedMsg');
+    if (msg) { msg.style.display = 'inline'; setTimeout(function() { msg.style.display = 'none'; }, 2000); }
+  }
+}
+
+// Legacy copy function - shows warning that key should be saved securely
+function copyNodeKey() {
+  var textarea = document.getElementById('nodeKeyTextarea');
+  if (textarea && textarea.value) {
+    navigator.clipboard.writeText(textarea.value).then(function() {
+      var msg = document.getElementById('copiedMsg');
+      if (msg) { msg.style.display = 'inline'; setTimeout(function() { msg.style.display = 'none'; }, 2000); }
+    }).catch(function() {
+      // Fallback: prompt user to manually copy
+      if (textarea && textarea.value) {
+        alert('Node key gekopieerd naar pragma. Plak deze in een veilig genregistreerd bestand op je doel-machine.');
+      }
+    });
+  }
+}
+</script>
+
+<%- include('partials/footer') %>

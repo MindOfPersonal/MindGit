@@ -1,0 +1,785 @@
+<% var page = ''; %>
+<%- include('partials/header', { title: 'Repo: ' + repo.name }) %>
+
+<div class="page-header">
+  <div>
+    <h1 class="flex items-center gap-3">
+      <span class="repo-status-ring <%= repo.color %>" id="repoStatusRing" style="display:inline-flex;min-width:40px;width:40px;height:40px;padding:0 4px;font-size:13px;line-height:1;letter-spacing:-0.3px;white-space:nowrap;overflow:hidden;">
+        <%= repo.status === 'clean' ? '&#10003;' : (repo.changes > 0 ? repo.changes : '?') %>
+      </span>
+      <span id="repoName"><%= repo.name %></span>
+    </h1>
+    <p class="page-description"><%= t('repoView.subtitle') %></p>
+  </div>
+  <div class="header-actions">
+    <div class="form-group" style="margin:0;min-width:220px;">
+      <input type="text" id="commitMessage" placeholder="<%= t('repoView.commitMessagePlaceholder') %>" style="font-size:12px;padding:8px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text);width:100%;">
+    </div>
+    <button id="btnSync" onclick="syncThisRepo()" class="btn btn-primary"><%= t('repoView.syncRepo') %></button>
+    <button id="btnAutoSync" onclick="toggleAutoSync()" class="btn btn-secondary"><%= t('repoView.autoSync') %></button>
+    <a href="/repos" class="btn btn-secondary"><%= t('button.back') %></a>
+  </div>
+</div>
+
+<div class="repo-meta" id="repoMeta">
+  <div class="repo-meta-item">
+    <span class="label"><%= t('field.localPathShort') %></span>
+    <span class="value"><%= repo.path %></span>
+  </div>
+  <% if (repo.remote) { %>
+  <div class="repo-meta-item">
+    <span class="label"><%= t('field.remote') %></span>
+    <span class="value" style="color:var(--cyan)"> <%= repo.remote %></span>
+  </div>
+  <% } %>
+  <div class="repo-meta-item">
+    <span class="label"><%= t('field.account') %></span>
+    <span class="value">
+      <% if (currentAccount) { %>
+        <span class="badge badge-neutral"><%= currentAccount.label %> (@<%= currentAccount.github_user %>)</span>
+      <% } else { %>
+        <span class="muted"><%= t('repoView.noAccount') %></span>
+      <% } %>
+    </span>
+  </div>
+  <% if (repo.branch) { %>
+  <div class="repo-meta-item">
+    <span class="label"><%= t('field.branch') %></span>
+    <span class="value" id="metaBranch"><%= repo.branch %></span>
+  </div>
+  <% } %>
+  <div class="repo-meta-item">
+    <span class="label"><%= t('field.status') %></span>
+    <span class="value" id="metaStatus">
+      <% if (repo.changes > 0) { %><span class="badge badge-yellow"><%= repo.changes %> <%= t('repoView.changes') %></span><% } %>
+      <% if (repo.behindCount > 0) { %><span class="badge badge-cyan"><%= repo.behindCount %> <%= t('repoView.behind') %></span><% } %>
+      <% if (repo.aheadCount > 0) { %><span class="badge badge-green"><%= repo.aheadCount %> <%= t('repoView.ahead') %></span><% } %>
+      <% if (repo.changes === 0 && repo.behindCount === 0 && repo.aheadCount === 0) { %><span class="badge badge-green"><%= t('repoView.upToDate') %></span><% } %>
+    </span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title"><%= t('repoView.editAccountTitle') %></div>
+  <form method="POST" action="/repos/edit/<%= repo.id %>" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+    <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+    <div class="form-group" style="flex:1;min-width:240px;margin:0;">
+      <label for="editAccountId"><%= t('field.account') %></label>
+      <select id="editAccountId" name="accountId">
+        <option value="" <%= !repo.account_id ? 'selected' : '' %>><%= t('field.legacyFallback') %></option>
+        <% accounts.forEach(function(acc) { %>
+          <option value="<%= acc.id %>" <%= currentAccount && currentAccount.id === acc.id ? 'selected' : '' %>><%= acc.label %> (@<%= acc.github_user %>)<%= acc.is_default ? ' [default]' : '' %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="form-group" style="flex:1;min-width:200px;margin:0;">
+      <label for="editGroupName"><%= t('field.group') %></label>
+      <input type="text" id="editGroupName" name="groupName" value="<%= repo.group_name || '' %>">
+    </div>
+    <div class="form-group" style="flex:1;min-width:220px;margin:0;">
+      <label for="editTags"><%= t('tags.label') %></label>
+      <input type="text" id="editTags" name="tags" value="<%= (tags || []).join(', ') %>" placeholder="<%= t('tags.placeholder') %>">
+    </div>
+    <button type="submit" class="btn btn-primary"><%= t('button.save') %></button>
+  </form>
+</div>
+
+<div class="section">
+  <div class="section-title"><%= t('repoView.branchesTitle') %></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <select id="branchSelect" style="min-width:220px;background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 12px;"></select>
+    <button onclick="switchRepoBranch()" class="btn btn-secondary btn-sm"><%= t('repoView.switchBranch') %></button>
+    <button onclick="deleteSelectedBranch()" class="btn btn-danger btn-sm"><%= t('branch.delete') %></button>
+    <button onclick="renameSelectedBranch()" class="btn btn-secondary btn-sm"><%= t('branch.rename') %></button>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+    <input type="text" id="newBranchName" placeholder="<%= t('branch.createPlaceholder') %>" style="flex:1;min-width:200px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);">
+    <button onclick="createNewBranch()" class="btn btn-primary btn-sm"><%= t('branch.create') %></button>
+  </div>
+  <div id="branchOutput" class="muted" style="margin-top:8px;font-size:12px;"></div>
+</div>
+
+<div class="section" id="conflictPanel" style="display:none;border-left:4px solid var(--red);">
+  <div class="section-title" style="color:var(--red);"><%= t('repoView.conflictTitle') %></div>
+  <p class="muted"><%= t('repoView.conflictDesc') %></p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+    <button onclick="resolveConflict('ours')" class="btn btn-primary btn-sm"><%= t('repoView.ours') %></button>
+    <button onclick="resolveConflict('theirs')" class="btn btn-secondary btn-sm"><%= t('repoView.theirs') %></button>
+    <button onclick="resolveConflict('abort')" class="btn btn-danger btn-sm"><%= t('repoView.abort') %></button>
+  </div>
+  <div id="resolveOutput" class="muted" style="margin-top:8px;font-size:12px;"></div>
+</div>
+
+<div class="section" id="stagingSection">
+  <div class="section-title"><%= t('staging.title') %></div>
+  <p class="muted" style="font-size:13px;margin:0 0 12px;"><%= t('staging.subtitle') %></p>
+  <div id="stagingWarnings"></div>
+  <div class="staging-toolbar">
+    <label class="checkbox-row" style="margin:0;"><input type="checkbox" id="stageAll" onchange="toggleAllStage(this.checked)"> <%= t('staging.selectAll') %></label>
+    <button type="button" class="btn btn-primary btn-sm" onclick="stageSelected()"><%= t('staging.stage') %></button>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="unstageSelected()"><%= t('staging.unstage') %></button>
+    <button type="button" class="btn btn-danger btn-sm" onclick="discardSelected()"><%= t('staging.discard') %></button>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table staging-table">
+      <thead>
+        <tr>
+          <th style="width:36px;"></th>
+          <th style="width:110px;"><%= t('staging.status') %></th>
+          <th><%= t('staging.file') %></th>
+        </tr>
+      </thead>
+      <tbody id="stagingBody">
+        <tr><td colspan="3" class="muted"><%= t('staging.loading') %></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="staging-commit">
+    <input type="text" id="stagingMessage" placeholder="<%= t('staging.commitPlaceholder') %>" style="flex:1;min-width:220px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);">
+    <label class="checkbox-row" style="margin:0;"><input type="checkbox" id="stagingPush" checked> <%= t('staging.commitAndPush') %></label>
+    <button type="button" class="btn btn-success btn-sm" onclick="commitStaging()"><%= t('staging.commit') %></button>
+  </div>
+  <div id="stagingOutput" class="muted" style="font-size:12px;margin-top:8px;"></div>
+  <details style="margin-top:14px;">
+    <summary class="muted" style="cursor:pointer;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;"><%= t('staging.gitignore') %></summary>
+    <p class="muted" style="font-size:12px;margin:10px 0 6px;"><%= t('staging.gitignoreHint') %></p>
+    <textarea id="gitignoreContent" rows="8" spellcheck="false" style="width:100%;font-family:monospace;font-size:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);"></textarea>
+    <button type="button" class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="saveGitignore()"><%= t('staging.saveGitignore') %></button>
+  </details>
+</div>
+
+<div class="section">
+  <div class="section-title"><%= t('repoView.syncConsole') %></div>
+  <div class="console-header">
+    <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+    <span><%= t('repoView.syncOutput') %></span>
+    <span id="autoSyncBadge" style="margin-left:auto;font-size:11px;color:var(--text-muted)"></span>
+  </div>
+  <div class="sync-console" id="syncConsole" style="border-top:none;border-radius:0 0 8px 8px;">
+    <span class="muted"><%= t('repoView.syncPlaceholder') %></span>
+  </div>
+</div>
+
+<div class="flex-row">
+  <div class="section">
+    <div class="section-title"><%= t('repoView.gitStatus') %></div>
+    <div class="console-header">
+      <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+      <span><%= t('repoView.gitStatusCmd') %></span>
+    </div>
+    <div class="console" id="consoleGitStatus" style="border-top:none;border-radius:0 0 8px 8px;">
+      <% if (gitStatus) { %>
+        <%- gitStatus.split('\n').map(function(line) {
+          if (line.indexOf('A\t') === 0 || line.indexOf('A ') === 0) return '<span class="added">' + line + '</span>';
+          if (line.indexOf('M\t') === 0 || line.indexOf('M ') === 0) return '<span class="modified">' + line + '</span>';
+          if (line.indexOf('D\t') === 0 || line.indexOf('D ') === 0) return '<span class="deleted">' + line + '</span>';
+          if (line.indexOf('R\t') === 0 || line.indexOf('R ') === 0) return '<span class="renamed">' + line + '</span>';
+          if (line.indexOf('??') === 0) return '<span class="warning">' + line + '</span>';
+          return line;
+        }).join('\n') %>
+      <% } else { %>
+        <span class="muted"><%= t('repoView.noChanges') %></span>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><%= t('repoView.recentFiles') %></div>
+    <div class="console-header">
+      <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+      <span><%= t('repoView.recentFilesCmd') %></span>
+    </div>
+    <div class="console" id="consoleChangedFiles" style="border-top:none;border-radius:0 0 8px 8px;">
+      <% if (changedFiles) { %>
+        <%- changedFiles.split('\n').map(function(line) {
+          var match = line.match(/^([A-Z])\s+(.+)$/);
+          var cls = '', filePath = '';
+          if (line.indexOf('A\t') === 0 || line.indexOf('A ') === 0) { cls = 'added'; filePath = line.replace(/^A\s+/, ''); }
+          else if (line.indexOf('M\t') === 0 || line.indexOf('M ') === 0) { cls = 'modified'; filePath = line.replace(/^M\s+/, ''); }
+          else if (line.indexOf('D\t') === 0 || line.indexOf('D ') === 0) { cls = 'deleted'; filePath = line.replace(/^D\s+/, ''); }
+          else if (line.indexOf('R') === 0) { cls = 'renamed'; filePath = line; }
+          if (filePath) {
+            return '<span class="' + cls + ' clickable-file" onclick="showDiff(\'' + filePath.replace(/'/g, "\\'") + '\')" title="Klik voor diff">' + line + '</span>';
+          }
+          return '<span class="' + cls + '">' + line + '</span>';
+        }).join('\n') %>
+      <% } else { %>
+        <span class="muted"><%= t('repoView.noRecentChanges') %></span>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title"><%= t('repoView.commitHistory') %></div>
+  <div class="console-header">
+    <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+    <span><%= t('repoView.commitHistoryCmd') %></span>
+  </div>
+  <div class="console" id="consoleLog" style="border-top:none;border-radius:0 0 8px 8px;">
+    <% if (logEntries) { %>
+<%- logEntries.split('\n').map(function(line) {
+  var match = line.match(/^([a-f0-9]+)\s(.+)/);
+  if (match) {
+    return '<span class="clickable-commit" onclick="showCommit(\'' + match[1] + '\')" title="Klik voor details">' + line + '</span>';
+  }
+  return line;
+}).join('\n') %>
+    <% } else { %>
+      <span class="muted"><%= t('repoView.noCommits') %></span>
+    <% } %>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title"><%= t('repoView.syncLogs') %></div>
+  <div class="console" id="syncLogsContainer" style="max-height:300px;">
+    <% if (logs.length === 0) { %>
+      <span class="muted"><%= t('repoView.noSyncLogs') %></span>
+    <% } else { %>
+      <% logs.forEach(function(log) { %>
+        <div class="log-entry">
+          <span class="time">[<%= new Date(log.created_at).toLocaleString(typeof lang !== 'undefined' && lang === 'en' ? 'en-US' : 'nl-NL') %>]</span>
+          <span class="action"><%= log.action %></span>
+          <%= log.message %>
+        </div>
+      <% }); %>
+    <% } %>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+var repoId = <%= repo.id %>;
+var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+var socket = io();
+var autoSyncActive = false;
+
+socket.on('connect', function() {
+  socket.emit('join-repo', repoId);
+});
+
+socket.on('sync-log', function(data) {
+  addConsoleLine(data.msg, data.type || '');
+});
+
+socket.on('auto-sync-status', function(data) {
+  autoSyncActive = data.active;
+  var btn = document.getElementById('btnAutoSync');
+  var badge = document.getElementById('autoSyncBadge');
+  var onLabel = "<%= t('repoView.stopAutoSync') %>";
+  var offLabel = "<%= t('repoView.autoSync') %>";
+  if (data.active) {
+    btn.textContent = onLabel;
+    btn.className = 'btn btn-danger';
+    badge.textContent = 'LIVE';
+    badge.style.color = 'var(--green)';
+  } else {
+    btn.textContent = offLabel;
+    btn.className = 'btn btn-secondary';
+    badge.textContent = '';
+  }
+});
+
+socket.on('repo-update', function(data) {
+  updateUI(data);
+});
+
+function addConsoleLine(msg, type) {
+  var el = document.getElementById('syncConsole');
+  var entry = document.createElement('div');
+  entry.className = type || '';
+  entry.textContent = msg;
+  el.appendChild(entry);
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderColoredLines(text) {
+  if (!text) return '<span class="muted"><%= t('repoView.noChanges') %></span>';
+  return text.split('\n').map(function(line) {
+    if (line.indexOf('A\t') === 0 || line.indexOf('A ') === 0) return '<span class="added">' + line + '</span>';
+    if (line.indexOf('M\t') === 0 || line.indexOf('M ') === 0) return '<span class="modified">' + line + '</span>';
+    if (line.indexOf('D\t') === 0 || line.indexOf('D ') === 0) return '<span class="deleted">' + line + '</span>';
+    if (line.indexOf('R\t') === 0 || line.indexOf('R ') === 0) return '<span class="renamed">' + line + '</span>';
+    if (line.indexOf('??') === 0) return '<span class="warning">' + line + '</span>';
+    return line;
+  }).join('\n');
+}
+
+var statusColors = {green:'#28a745',yellow:'#ffc107',orange:'#fd7e14',cyan:'#17a2b8',red:'#dc3545',gray:'#6c757d'};
+
+function updateUI(data) {
+  var st = data.status;
+  var gd = data.gitData;
+
+  document.getElementById('consoleGitStatus').innerHTML = renderColoredLines(gd.gitStatus);
+  document.getElementById('consoleChangedFiles').innerHTML = renderColoredLines(gd.changedFiles);
+  document.getElementById('consoleLog').innerHTML = gd.logEntries || '<span class="muted"><%= t('repoView.noCommits') %></span>';
+
+  var ring = document.getElementById('repoStatusRing');
+  ring.className = 'repo-status-ring ' + st.color;
+  if (st.status === 'clean') ring.innerHTML = '&#10003;';
+  else if (st.changes > 0) ring.innerHTML = st.changes;
+  else ring.innerHTML = '?';
+  ring.style.background = (statusColors[st.color] || '#6c757d');
+  ring.style.borderColor = (statusColors[st.color] || '#6c757d');
+
+  var metaStatus = document.getElementById('metaStatus');
+  var html = '';
+  var chLabel = "<%= t('repoView.changes') %>";
+  var bhLabel = "<%= t('repoView.behind') %>";
+  var ahLabel = "<%= t('repoView.ahead') %>";
+  var upLabel = "<%= t('repoView.upToDate') %>";
+  var dateLocale = "<%= (typeof lang !== 'undefined' && lang === 'en') ? 'en-US' : 'nl-NL' %>";
+  if (st.changes > 0) html += '<span class="badge badge-yellow">' + st.changes + ' ' + chLabel + '</span> ';
+  if (st.behindCount > 0) html += '<span class="badge badge-cyan">' + st.behindCount + ' ' + bhLabel + '</span> ';
+  if (st.aheadCount > 0) html += '<span class="badge badge-green">' + st.aheadCount + ' ' + ahLabel + '</span> ';
+  if (st.changes === 0 && st.behindCount === 0 && st.aheadCount === 0) html += '<span class="badge badge-green">' + upLabel + '</span>';
+  metaStatus.innerHTML = html;
+}
+
+async function syncThisRepo() {
+  var el = document.getElementById('syncConsole');
+  el.innerHTML = '';
+  el.appendChild(document.createTextNode(I18N.syncStarting + '\n'));
+
+  var btn = document.getElementById('btnSync');
+  var cmMsg = document.getElementById('commitMessage').value.trim();
+  btn.disabled = true;
+  btn.textContent = "<%= t('repoView.syncingRepo') %>";
+  btn.className = 'btn btn-primary btn-loading';
+
+  try {
+    var res = await fetch('/repos/sync/' + repoId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify({ commitMessage: cmMsg || undefined }),
+    });
+    var result = await res.json();
+
+    if (result.ok) {
+      addConsoleLine(I18N.syncComplete, 'success');
+      document.getElementById('conflictPanel').style.display = 'none';
+    } else {
+      addConsoleLine(I18N.syncFailedRepo + (result.reason || I18N.unknownReason), 'danger');
+      if (result.reason === 'conflict') {
+        document.getElementById('conflictPanel').style.display = 'block';
+      }
+    }
+
+    var statusRes = await fetch('/repos/status/' + repoId);
+    var data = await statusRes.json();
+    updateUI(data);
+
+    var logsRes = await fetch('/repos/view/' + repoId);
+    var logsHtml = await logsRes.text();
+    var div = document.createElement('div');
+    div.innerHTML = logsHtml;
+    var newLogs = div.querySelector('#syncLogsContainer');
+    if (newLogs) {
+      document.getElementById('syncLogsContainer').innerHTML = newLogs.innerHTML;
+    }
+
+  } catch (err) {
+    addConsoleLine(I18N.errorPrefixRepo + err.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "<%= t('repoView.syncRepo') %>";
+    btn.className = 'btn btn-primary';
+  }
+}
+
+function toggleAutoSync() {
+  if (autoSyncActive) {
+    socket.emit('auto-sync-stop', repoId);
+  } else {
+    document.getElementById('syncConsole').innerHTML = '';
+    socket.emit('auto-sync-start', repoId);
+  }
+}
+
+async function resolveConflict(strategy) {
+  var out = document.getElementById('resolveOutput');
+  out.textContent = I18N.resolving;
+  try {
+    var res = await fetch('/api/repos/' + repoId + '/resolve-conflict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ strategy: strategy })
+    });
+    var result = await res.json();
+    if (result.success) {
+      out.textContent = I18N.conflictResolved;
+      document.getElementById('conflictPanel').style.display = 'none';
+      syncThisRepo();
+    } else {
+      out.textContent = result.error || I18N.resolveFailed;
+    }
+  } catch (err) {
+    out.textContent = I18N.errorPrefixRepo + err.message;
+  }
+}
+
+async function loadBranches() {
+  try {
+    var res = await fetch('/api/repos/' + repoId + '/branches');
+    var result = await res.json();
+    if (!result.success) {
+      document.getElementById('branchOutput').textContent = result.error || I18N.branchesFailed;
+      return;
+    }
+    var select = document.getElementById('branchSelect');
+    select.innerHTML = '';
+    result.data.branches.forEach(function(b) {
+      var opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = b;
+      if (b === result.data.current) opt.selected = true;
+      select.appendChild(opt);
+    });
+    document.getElementById('branchOutput').textContent = '';
+  } catch (err) {
+    document.getElementById('branchOutput').textContent = I18N.errorPrefixRepo + err.message;
+  }
+}
+
+async function switchRepoBranch() {
+  var select = document.getElementById('branchSelect');
+  var branch = select.value;
+  if (!branch) return;
+  document.getElementById('branchOutput').textContent = I18N.switching;
+  try {
+    var res = await fetch('/api/repos/' + repoId + '/branches/switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branch: branch })
+    });
+    var result = await res.json();
+    if (result.success) {
+      document.getElementById('branchOutput').textContent = I18N.currentBranch + result.data.current;
+      document.getElementById('metaBranch').textContent = result.data.current;
+      loadBranches();
+    } else {
+      document.getElementById('branchOutput').textContent = result.error || I18N.switchFailed;
+    }
+  } catch (err) {
+    document.getElementById('branchOutput').textContent = I18N.errorPrefixRepo + err.message;
+  }
+}
+
+async function showDiff(filePath) {
+  openModal(I18N.diffTitle, '<span class="muted">' + I18N.diffLoading + '</span>');
+  try {
+    var res = await fetch('/repos/diff/' + repoId + '?file=' + encodeURIComponent(filePath));
+    var data = await res.json();
+    if (data.error) {
+      document.getElementById('modalBody').innerHTML = '<span class="muted">' + I18N.diffNoDiff + '</span>';
+      return;
+    }
+    var html = '<div class="muted" style="margin-bottom:12px;font-size:12px;">' + escapeHtml(data.file) + '</div>';
+    if (data.diff) {
+      data.diff.split('\n').forEach(function(l) {
+        if (l.indexOf('diff --git') === 0 || l.indexOf('index ') === 0 || l.indexOf('---') === 0 || l.indexOf('+++') === 0) {
+          html += '<div class="diff-header">' + escapeHtml(l) + '</div>';
+        } else if (l.indexOf('@@') === 0) {
+          html += '<div class="diff-hunk">' + escapeHtml(l) + '</div>';
+        } else if (l.indexOf('+') === 0) {
+          html += '<div class="diff-added">' + escapeHtml(l) + '</div>';
+        } else if (l.indexOf('-') === 0) {
+          html += '<div class="diff-removed">' + escapeHtml(l) + '</div>';
+        } else {
+          html += '<div>' + escapeHtml(l) + '</div>';
+        }
+      });
+    } else {
+      html += '<span class="muted">' + I18N.diffNoDiff + '</span>';
+    }
+    document.getElementById('modalBody').innerHTML = html;
+  } catch (err) {
+    document.getElementById('modalBody').innerHTML = '<span class="muted">' + I18N.diffNoDiff + '</span>';
+  }
+}
+
+async function showCommit(hash) {
+  openModal(I18N.commitTitle, '<span class="muted">' + I18N.commitLoading + '</span>');
+  try {
+    var res = await fetch('/repos/commit/' + repoId + '?commit=' + hash);
+    var data = await res.json();
+    if (data.error) {
+      document.getElementById('modalBody').innerHTML = '<span class="muted">' + data.error + '</span>';
+      return;
+    }
+    var html = '';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+    html += '<tr><td style="padding:4px 8px;color:var(--text-muted);width:80px;">' + I18N.commitHash + '</td><td style="padding:4px 8px;font-family:monospace;color:var(--accent)">' + escapeHtml(data.hash) + '</td></tr>';
+    html += '<tr><td style="padding:4px 8px;color:var(--text-muted)">' + I18N.commitAuthor + '</td><td style="padding:4px 8px">' + escapeHtml(data.author) + ' &lt;' + escapeHtml(data.email) + '&gt;</td></tr>';
+    html += '<tr><td style="padding:4px 8px;color:var(--text-muted)">' + I18N.commitDate + '</td><td style="padding:4px 8px">' + escapeHtml(data.date) + '</td></tr>';
+    html += '<tr><td style="padding:4px 8px;color:var(--text-muted)">' + I18N.commitSubject + '</td><td style="padding:4px 8px;font-weight:600">' + escapeHtml(data.subject) + '</td></tr>';
+    if (data.body) html += '<tr><td style="padding:4px 8px;color:var(--text-muted);vertical-align:top">' + I18N.commitBody + '</td><td style="padding:4px 8px;white-space:pre-wrap">' + escapeHtml(data.body) + '</td></tr>';
+    if (data.shortStat) html += '<tr><td style="padding:4px 8px;color:var(--text-muted)">' + I18N.commitStats + '</td><td style="padding:4px 8px">' + escapeHtml(data.shortStat) + '</td></tr>';
+    html += '</table>';
+    if (data.files && data.files.length > 0) {
+      html += '<div style="margin-top:12px;font-weight:600;color:var(--text-muted);font-size:12px;">' + I18N.commitFiles + ' (' + data.files.length + '):</div>';
+      data.files.forEach(function(f) {
+        var cls = 'muted';
+        if (f.indexOf('A\t') === 0) cls = 'diff-added';
+        else if (f.indexOf('M\t') === 0) cls = 'diff-added';
+        else if (f.indexOf('D\t') === 0) cls = 'diff-removed';
+        html += '<div class="' + cls + '" style="font-size:12px;">' + escapeHtml(f) + '</div>';
+      });
+    }
+    document.getElementById('modalBody').innerHTML = html;
+  } catch (err) {
+    document.getElementById('modalBody').innerHTML = '<span class="muted">' + err.message + '</span>';
+  }
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// --- Staging / selectief committen ---------------------------------------
+var ST = {
+  loading: "<%= t('staging.loading') %>",
+  noChanges: "<%= t('staging.noChanges') %>",
+  stage: "<%= t('staging.stage') %>",
+  unstage: "<%= t('staging.unstage') %>",
+  commitOk: "<%= t('staging.commitOk') %>",
+  pushOk: "<%= t('staging.pushOk') %>",
+  nothingSelected: "<%= t('staging.nothingSelected') %>",
+  messageRequired: "<%= t('staging.messageRequired') %>",
+  discardConfirm: "<%= t('staging.confirmDiscard') %>",
+  warningSecret: "<%= t('staging.warningSecret') %>",
+  warningLarge: "<%= t('staging.warningLarge') %>",
+  warningBulky: "<%= t('staging.warningBulky') %>",
+  warningBuild: "<%= t('staging.warningBuild') %>",
+  label: {
+    untracked: "<%= t('staging.untracked') %>",
+    added: "<%= t('staging.added') %>",
+    modified: "<%= t('staging.modified') %>",
+    deleted: "<%= t('staging.deleted') %>",
+    renamed: "<%= t('staging.renamed') %>",
+    copied: "<%= t('staging.copied') %>",
+    typechange: "<%= t('staging.typechange') %>",
+    conflict: "<%= t('staging.conflict') %>"
+  }
+};
+
+var stagingFiles = [];
+
+function stagingBadgeClass(status) {
+  if (status === 'added' || status === 'untracked') return 'badge-green';
+  if (status === 'deleted' || status === 'conflict') return 'badge-red';
+  if (status === 'modified' || status === 'typechange') return 'badge-yellow';
+  if (status === 'renamed' || status === 'copied') return 'badge-cyan';
+  return 'badge-neutral';
+}
+
+function renderWarnings(warnings) {
+  var el = document.getElementById('stagingWarnings');
+  if (!el) return;
+  if (!warnings || !warnings.length) { el.innerHTML = ''; return; }
+  var labels = { secret: ST.warningSecret, large: ST.warningLarge, bulky: ST.warningBulky, 'build-output': ST.warningBuild };
+  var html = '<div class="alert alert-danger" style="margin-bottom:12px;"><strong>Let op:</strong><ul style="margin:6px 0 0 18px;padding:0;">';
+  warnings.forEach(function(w) {
+    var extra = w.size ? ' (' + Math.round(w.size / 1024 / 1024 * 10) / 10 + ' MB)' : '';
+    html += '<li><code>' + escapeHtml(w.path) + '</code> ' + escapeHtml(labels[w.reason] || w.reason) + extra + '</li>';
+  });
+  html += '</ul></div>';
+  el.innerHTML = html;
+}
+
+function renderStaging(files) {
+  stagingFiles = files || [];
+  var body = document.getElementById('stagingBody');
+  if (!body) return;
+  if (!stagingFiles.length) {
+    body.innerHTML = '<tr><td colspan="3" class="muted">' + escapeHtml(ST.noChanges) + '</td></tr>';
+    return;
+  }
+  var html = '';
+  stagingFiles.forEach(function(f) {
+    var status = f.status || 'modified';
+    html += '<tr>';
+    html += '<td><input type="checkbox" class="stage-check" data-path="' + escapeHtml(f.path) + '"' + (f.staged ? ' checked' : '') + '></td>';
+    html += '<td><span class="badge ' + stagingBadgeClass(status) + '">' + escapeHtml(ST.label[status] || status) + (f.staged ? ' •' : '') + '</span></td>';
+    html += '<td><span class="staging-path" data-path="' + escapeHtml(f.path) + '" title="Klik voor diff">' + escapeHtml(f.path) + '</span></td>';
+    html += '</tr>';
+  });
+  body.innerHTML = html;
+}
+
+async function loadChanges() {
+  try {
+    var res = await fetch('/repos/changes/' + repoId);
+    var data = await res.json();
+    if (!data.ok) {
+      document.getElementById('stagingBody').innerHTML = '<tr><td colspan="3" class="muted">' + escapeHtml(data.error || '') + '</td></tr>';
+      return;
+    }
+    renderWarnings(data.warnings);
+    renderStaging(data.files);
+    document.getElementById('gitignoreContent').value = data.gitignore || '';
+  } catch (err) {
+    document.getElementById('stagingBody').innerHTML = '<tr><td colspan="3" class="muted">' + escapeHtml(err.message) + '</td></tr>';
+  }
+}
+
+function toggleAllStage(checked) {
+  document.querySelectorAll('.stage-check').forEach(function(cb) { cb.checked = checked; });
+}
+
+function selectedStagingFiles() {
+  return Array.prototype.slice.call(document.querySelectorAll('.stage-check:checked')).map(function(cb) { return cb.dataset.path; });
+}
+
+async function stagingAction(action, files, extra) {
+  var out = document.getElementById('stagingOutput');
+  out.textContent = '...';
+  try {
+    var res = await fetch('/repos/changes/' + repoId + '/' + action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ files: files }, extra || {})),
+    });
+    var data = await res.json();
+    out.textContent = data.ok ? '' : (data.error || '');
+    await loadChanges();
+    await refreshStagingStatus();
+    return data;
+  } catch (err) {
+    out.textContent = err.message;
+    return { ok: false, error: err.message };
+  }
+}
+
+function stageSelected() {
+  var files = selectedStagingFiles();
+  if (!files.length) { document.getElementById('stagingOutput').textContent = ST.nothingSelected; return; }
+  stagingAction('stage', files);
+}
+
+function unstageSelected() {
+  var files = selectedStagingFiles();
+  if (!files.length) { document.getElementById('stagingOutput').textContent = ST.nothingSelected; return; }
+  stagingAction('unstage', files);
+}
+
+function discardSelected() {
+  var files = selectedStagingFiles();
+  if (!files.length) { document.getElementById('stagingOutput').textContent = ST.nothingSelected; return; }
+  if (!confirm(ST.discardConfirm)) return;
+  stagingAction('discard', files);
+}
+
+async function commitStaging() {
+  var files = selectedStagingFiles();
+  var message = document.getElementById('stagingMessage').value.trim();
+  var out = document.getElementById('stagingOutput');
+  if (!files.length) { out.textContent = ST.nothingSelected; return; }
+  if (!message) { out.textContent = ST.messageRequired; return; }
+  var push = document.getElementById('stagingPush').checked;
+  var data = await stagingAction('commit', files, { message: message, push: push });
+  if (data.ok) {
+    out.textContent = push && data.pushed ? ST.pushOk : ST.commitOk;
+    document.getElementById('stagingMessage').value = '';
+  }
+}
+
+async function refreshStagingStatus() {
+  try {
+    var res = await fetch('/repos/status/' + repoId);
+    var data = await res.json();
+    if (!data.error) updateUI(data);
+    if (typeof loadBranches === 'function') loadBranches();
+  } catch (e) { /* niet fataal */ }
+}
+
+async function saveGitignore() {
+  var out = document.getElementById('stagingOutput');
+  try {
+    var res = await fetch('/repos/gitignore/' + repoId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: document.getElementById('gitignoreContent').value }),
+    });
+    var data = await res.json();
+    out.textContent = data.ok ? 'OK' : (data.error || '');
+    await loadChanges();
+  } catch (err) {
+    out.textContent = err.message;
+  }
+}
+
+document.getElementById('stagingBody').addEventListener('click', function(e) {
+  var pathEl = e.target.closest('.staging-path');
+  if (pathEl) showDiff(pathEl.dataset.path);
+});
+
+// --- Branch beheer --------------------------------------------------------
+async function createNewBranch() {
+  var input = document.getElementById('newBranchName');
+  var name = input.value.trim();
+  if (!name) return;
+  var out = document.getElementById('branchOutput');
+  out.textContent = '...';
+  try {
+    var res = await fetch('/api/repos/' + repoId + '/branches/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name }),
+    });
+    var data = await res.json();
+    out.textContent = data.success ? "<%= t('branch.created') %>" : (data.error || '');
+    if (data.success) { input.value = ''; loadBranches(); refreshStagingStatus(); }
+  } catch (err) { out.textContent = err.message; }
+}
+
+async function deleteSelectedBranch() {
+  var select = document.getElementById('branchSelect');
+  var name = select.value;
+  if (!name) return;
+  if (!confirm("<%= t('branch.confirmDelete') %>")) return;
+  var out = document.getElementById('branchOutput');
+  try {
+    var res = await fetch('/api/repos/' + repoId + '/branches/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name }),
+    });
+    var data = await res.json();
+    out.textContent = data.success ? "<%= t('branch.deleted') %>" : (data.error || '');
+    if (data.success) { loadBranches(); refreshStagingStatus(); }
+  } catch (err) { out.textContent = err.message; }
+}
+
+async function renameSelectedBranch() {
+  var select = document.getElementById('branchSelect');
+  var from = select.value;
+  if (!from) return;
+  var to = prompt("<%= t('branch.newName') %>", from);
+  if (!to || to === from) return;
+  var out = document.getElementById('branchOutput');
+  try {
+    var res = await fetch('/api/repos/' + repoId + '/branches/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: from, to: to.trim() }),
+    });
+    var data = await res.json();
+    out.textContent = data.success ? "<%= t('branch.renamed') %>" : (data.error || '');
+    if (data.success) { loadBranches(); refreshStagingStatus(); }
+  } catch (err) { out.textContent = err.message; }
+}
+
+loadChanges();
+loadBranches();
+</script>
+<style>
+.clickable-file { cursor: pointer; border-bottom: 1px dashed transparent; transition: all 0.15s; }
+.clickable-file:hover { border-bottom-color: var(--accent); color: var(--accent) !important; }
+.clickable-commit { cursor: pointer; display: block; transition: all 0.15s; border-radius: 4px; padding: 1px 4px; }
+.clickable-commit:hover { background: var(--accent-glow); color: var(--accent) !important; }
+</style>
+<%- include('partials/footer') %>

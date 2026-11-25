@@ -1,0 +1,36 @@
+{
+  "name": "MindGit",
+  "version": "1.3.4",
+  "description": "Web dashboard voor het beheren van lokale Git repositories en GitHub synchronisatie (MindFramework).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "migrate:accounts": "node scripts/migrate-accounts.js",
+    "migrate:nodes": "node scripts/migrate-nodes.js",
+    "agent:install": "cd agent && npm ci --production",
+    "agent:package": "cd agent && npm pack"
+  },
+  "keywords": [],
+  "author": "MindDevelopment",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "connect-flash": "^0.1.1",
+    "cors": "^2.8.6",
+    "csrf": "^3.1.0",
+    "dotenv": "^17.4.2",
+    "ejs": "^3.1.10",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
+    "mariadb": "^3.5.3",
+    "socket.io": "^4.8.3",
+    "web-push": "^4.0.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "electron": "^45.3.4"
+  }
+}

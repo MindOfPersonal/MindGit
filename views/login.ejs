@@ -1,0 +1,41 @@
+<% var page = ''; %>
+<!DOCTYPE html>
+<html lang="<%= typeof lang !== 'undefined' ? lang : 'nl' %>">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= t('login.title') %></title>
+  <link rel="stylesheet" href="/style.css?v=4">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-card">
+      <div class="login-logo">
+        <img class="icon" src="/icons/logo.png" alt="MindGit logo">
+        <h1>MindGit</h1>
+        <p class="login-sub"><%= t('login.subtitle') %></p>
+      </div>
+
+      <% if (locals.messages && messages.error) { %>
+        <% messages.error.forEach(function(msg) { %>
+          <div class="alert alert-danger">&#10007; <%= msg %></div>
+        <% }); %>
+      <% } %>
+
+      <form method="POST" action="/login">
+        <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+        <div class="form-group">
+          <label for="username"><%= t('login.username') %></label>
+          <input type="text" id="username" name="username" required autofocus placeholder="<%= t('login.usernamePlaceholder') %>">
+        </div>
+        <div class="form-group">
+          <label for="password"><%= t('login.password') %></label>
+          <input type="password" id="password" name="password" required placeholder="<%= t('login.passwordPlaceholder') %>">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top:8px"><%= t('login.submit') %></button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<% var page = 'activity'; %>
+<%- include('partials/header', { title: t('activity.title'), page: 'activity' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('activity.title') %></h1>
+    <p class="page-description"><%= t('activity.subtitle') %></p>
+  </div>
+  <div class="header-actions">
+    <a href="/repos/activity" class="btn btn-primary"><%= t('pr.refresh') %></a>
+    <a href="/repos" class="btn btn-secondary"><%= t('button.back') %></a>
+  </div>
+</div>
+
+<% if (activities.length === 0) { %>
+  <div class="empty-state">
+    <div class="empty-icon">&#128339;</div>
+    <h3><%= t('activity.empty') %></h3>
+  </div>
+<% } else { %>
+  <div class="timeline">
+    <% activities.forEach(function(act) { %>
+      <div class="timeline-item">
+        <div class="timeline-dot <%= act.type %>"></div>
+        <div class="timeline-content">
+          <div class="timeline-header">
+            <span class="timeline-type badge badge-<%= act.type === 'commit' ? 'green' : act.type === 'push' ? 'cyan' : act.type === 'pull' ? 'yellow' : 'neutral' %>">
+              <%= act.type === 'commit' ? t('activity.commit') : act.type === 'push' ? t('activity.push') : act.type === 'pull' ? t('activity.pull') : act.type === 'merge' ? t('activity.merge') : t('activity.sync') %>
+            </span>
+            <span class="timeline-repo"><%= act.repoName %></span>
+            <span class="timeline-date"><%= new Date(act.date).toLocaleString() %></span>
+          </div>
+          <div class="timeline-body">
+            <% if (act.type === 'commit' && act.hash) { %>
+              <span class="commit-hash"><%= act.hash %></span>
+              <span><%= act.message %></span>
+              <div class="timeline-author"><%= t('activity.by') %> <%= act.author %></div>
+            <% } else { %>
+              <span><%= act.message %></span>
+              <% if (act.detail) { %><span class="timeline-detail">(<%= act.detail %>)</span><% } %>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+<% } %>
+
+<style>
+.timeline { position: relative; padding-left: 32px; }
+.timeline::before {
+  content: ''; position: absolute; left: 12px; top: 0; bottom: 0;
+  width: 2px; background: var(--border); border-radius: 2px;
+}
+.timeline-item { position: relative; margin-bottom: 20px; animation: fadeIn 0.3s ease; }
+.timeline-dot {
+  position: absolute; left: -24px; top: 4px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--bg-tertiary); border: 2px solid var(--border);
+  z-index: 1;
+}
+.timeline-dot.commit { background: var(--green); border-color: var(--green); }
+.timeline-dot.push { background: var(--cyan); border-color: var(--cyan); }
+.timeline-dot.pull { background: var(--yellow); border-color: var(--yellow); }
+.timeline-dot.sync { background: var(--accent); border-color: var(--accent); }
+.timeline-dot.merge { background: var(--orange); border-color: var(--orange); }
+.timeline-content {
+  background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow);
+  border-radius: var(--radius-sm); padding: 14px 18px;
+  transition: all var(--transition);
+}
+.timeline-content:hover { border-color: var(--border-light); background: var(--glass-bg-hover); }
+.timeline-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.timeline-type { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.timeline-repo { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.timeline-date { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+.timeline-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+.timeline-body .commit-hash {
+  font-family: 'JetBrains Mono', monospace; color: var(--accent);
+  margin-right: 8px; font-size: 12px;
+}
+.timeline-author { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.timeline-detail { color: var(--text-muted); font-size: 11px; }
+</style>
+
+<%- include('partials/footer') %>

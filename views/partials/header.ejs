@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="<%= typeof lang !== 'undefined' ? lang : 'nl' %>">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+  <meta name="theme-color" content="#8b7cff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MindGit">
+  <link rel="manifest" href="/manifest.json">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').then(function(reg) {
+        console.log('[PWA] ServiceWorker geregistreerd:', reg.scope);
+      }).catch(function(err) {
+        console.warn('[PWA] ServiceWorker registratie mislukt:', err.message || err);
+      });
+    }
+  </script>
+  <link rel="icon" href="/icons/logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="/icons/logo.png">
+  <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %>MindGit</title>
+  <link rel="stylesheet" href="/style.css<%= typeof cssVersion !== 'undefined' && cssVersion ? '?v=' + cssVersion : '' %>">
+  <% if (typeof themeCss !== 'undefined') { %><style><%= themeCss %></style><% } %>
+</head>
+<body class="<%= typeof bodyClass !== 'undefined' ? bodyClass : '' %> theme-<%= typeof theme !== 'undefined' ? theme : 'glacier' %>">
+  <% var p = typeof page !== 'undefined' ? page : ''; %>
+  <header class="topbar" id="topbar">
+    <button class="topbar-menu-btn" id="mobileMenuBtn" aria-label="Menu openen">&#9776;</button>
+    <div class="topbar-brand">
+      <img class="topbar-logo" src="/icons/logo.png" alt="MindGit">
+      <span>MindGit</span>
+    </div>
+    <% if (typeof user !== 'undefined' && user) { %>
+      <div class="topbar-user" title="<%= user.username %>"><%= user.username.charAt(0).toUpperCase() %></div>
+    <% } %>
+  </header>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <img class="logo-icon" src="/icons/logo.png" alt="MindGit logo">
+        <div>
+          <div class="logo-text">MindGit</div>
+          <div class="logo-sub">Repository Manager</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section"><%= t('nav.main') %></div>
+        <a href="/repos" class="<%= p === 'dashboard' ? 'active' : '' %>">
+          <span class="nav-icon">&#9632;</span> <%= t('nav.dashboard') %>
+        </a>
+        <a href="/repos/create" class="<%= p === 'create' ? 'active' : '' %>">
+          <span class="nav-icon">+</span> <%= t('nav.newRepo') %>
+        </a>
+        <a href="/repos/add" class="<%= p === 'add' ? 'active' : '' %>">
+          <span class="nav-icon">&#8618;</span> <%= t('nav.addRepo') %>
+        </a>
+        <div class="nav-section"><%= t('nav.actions') %></div>
+        <form method="POST" action="/repos/sync-all" onsubmis="return window.I18N && window.I18N.syncAllConfirm ? confirm(window.I18N.syncAllConfirm) : true;">
+          <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+          <button type="submit" class="nav-action-btn">
+            <span class="nav-icon">&#8635;</span> <%= t('nav.syncAll') %>
+          </button>
+        </form>
+        <a href="/repos/watch" class="<%= p === 'watch' ? 'active' : '' %>">
+          <span class="nav-icon">&#128260;</span> <%= t('nav.autoSyncWatch') %>
+        </a>
+        <div class="nav-section"><%= t('nav.insight') %></div>
+        <a href="/repos/prs" class="<%= p === 'prs' ? 'active' : '' %>">
+          <span class="nav-icon">&#128196;</span> <%= t('nav.prs') %>
+        </a>
+        <a href="/repos/issues" class="<%= p === 'issues' ? 'active' : '' %>">
+          <span class="nav-icon">&#128204;</span> <%= t('nav.issues') %>
+        </a>
+        <a href="/repos/releases" class="<%= p === 'releases' ? 'active' : '' %>">
+          <span class="nav-icon">&#127991;</span> <%= t('nav.releases') %>
+        </a>
+        <a href="/repos/actions" class="<%= p === 'actions' ? 'active' : '' %>">
+          <span class="nav-icon">&#9881;</span> <%= t('nav.actions') %>
+        </a>
+        <a href="/repos/activity" class="<%= p === 'activity' ? 'active' : '' %>">
+          <span class="nav-icon">&#128339;</span> <%= t('nav.activity') %>
+        </a>
+        <a href="/repos/stats" class="<%= p === 'stats' ? 'active' : '' %>">
+          <span class="nav-icon">&#128200;</span> <%= t('nav.stats') %>
+        </a>
+        <div class="nav-section"><%= t('nav.settings') %></div>
+        <a href="/repos/settings/webhooks" class="<%= p === 'webhooks' ? 'active' : '' %>">
+          <span class="nav-icon">&#128276;</span> <%= t('nav.webhooks') %>
+        </a>
+        <a href="/repos/settings/notifications" class="<%= p === 'notifications' ? 'active' : '' %>">
+          <span class="nav-icon">&#128276;</span> Discord
+        </a>
+        <a href="/repos/settings/backup" class="<%= p === 'backup' ? 'active' : '' %>">
+          <span class="nav-icon">&#128190;</span> <%= t('nav.backup') %>
+        </a>
+        <a href="/repos/nodes" class="<%= p === 'nodes' ? 'active' : '' %>">
+          <span class="nav-icon">&#128421;</span> <%= t('nav.nodes') || 'Nodes' %>
+        </a>
+        <a href="/repos/settings" class="<%= p === 'settings' ? 'active' : '' %>">
+          <span class="nav-icon">&#9881;</span> <%= t('nav.settings') %>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="user-avatar"><%= typeof user !== 'undefined' && user ? user.username.charAt(0).toUpperCase() : '?' %></div>
+          <div>
+            <div class="user-name"><%= typeof user !== 'undefined' && user ? user.username : '' %></div>
+            <div class="user-role"><%= t('user.role') %></div>
+          </div>
+        </div>
+        <a href="/logout" class="btn-logout">&#10149; <%= t('user.logout') %></a>
+      </div>
+    </aside>
+    <main class="main-content">
+      <div id="flashContainer">
+        <% if (locals.messages && messages.error) { %>
+          <% messages.error.forEach(function(msg) { %>
+            <div class="alert alert-danger">&#10007; <%= msg %></div>
+          <% }); %>
+        <% } %>
+        <% if (locals.messages && messages.success) { %>
+          <% messages.success.forEach(function(msg) { %>
+            <div class="alert alert-success">&#10003; <%= msg %></div>
+          <% }); %>
+        <% } %>
+      </div>
+      <!-- PWA offline indicator -->
+      <div id="offlineIndicator" style="display:none;padding:10px 16px;background:var(--orange-bg);border:1px solid rgba(255,145,0,0.3);border-radius:var(--radius-sm);margin-bottom:20px;font-size:13px;color:var(--orange);">
+        &#9888; <%= t('pwa.offline') %>
+      </div>
+      <!-- PWA install prompt -->
+      <div id="pwaInstallBanner" style="display:none;padding:12px 16px;background:var(--bg-card);border:1px solid var(--accent);border-radius:var(--radius-sm);margin-bottom:20px;font-size:13px;align-items:center;gap:12px;">
+        <span style="flex:1;"><%= t('pwa.installDesc') %></span>
+        <button onclick="installPWA()" class="btn btn-primary btn-sm"><%= t('pwa.install') %></button>
+        <button onclick="dismissPWA()" class="btn btn-secondary btn-sm">&times;</button>
+      </div>
+<script>
+window.I18N = <%- JSON.stringify(typeof i18nClient !== 'undefined' ? i18nClient : {}) %>;
+</script>
+<script src="/app.js"></script>
+<script>
+// Flash messages auto-dismiss
+(function() {
+  var container = document.getElementById('flashContainer');
+  if (container) {
+    var alerts = container.querySelectorAll('.alert');
+    alerts.forEach(function(el) {
+      setTimeout(function() {
+        el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-10px)';
+        setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 600);
+      }, 5000);
+    });
+  }
+})();
+</script>
+
+<!-- Shared modal for diff/commit detail -->
+<div id="sharedModal" class="modal-overlay" style="display:none;" onclick="closeModal(event)">
+  <div class="modal-content" id="modalContent" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span id="modalTitle"></span>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+function openModal(title, html) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('sharedModal').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('sharedModal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeModal();
+});
+</script>

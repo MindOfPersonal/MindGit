@@ -1,0 +1,75 @@
+<% var page = 'webhooks'; %>
+<%- include('partials/header', { title: t('webhook.title'), page: 'webhooks' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('webhook.title') %></h1>
+    <p class="page-description"><%= t('webhook.subtitle') %></p>
+  </div>
+  <div class="header-actions">
+    <a href="/repos" class="btn btn-secondary"><%= t('button.back') %></a>
+  </div>
+</div>
+
+<div class="form-card" style="max-width:800px;">
+  <h2><%= t('webhook.urlLabel') %></h2>
+  <p class="subtitle"><%= t('webhook.desc') %></p>
+
+  <div class="webhook-url">
+    <code id="webhookUrl"><%= webhookUrl %></code>
+    <button onclick="copyWebhookUrl()" class="btn btn-primary" id="copyBtn"><%= t('webhook.copy') %></button>
+  </div>
+
+  <h3 style="margin:28px 0 12px;"><%= t('webhook.setupGuide') %></h3>
+  <ol style="padding-left:20px;color:var(--text-secondary);font-size:13px;line-height:2;">
+    <li><%= t('webhook.guideStep1') %></li>
+    <li><%= t('webhook.guideStep2') %></li>
+    <li><%= t('webhook.guideStep3') %></li>
+    <li><%= t('webhook.guideStep4') %></li>
+    <li><%= t('webhook.guideStep5') %></li>
+    <li><%= t('webhook.guideStep6') %></li>
+  </ol>
+</div>
+
+<% if (repos.length > 0) { %>
+<div class="section" style="margin-top:24px;">
+  <div class="section-title"><%= t('stats.repos') %></div>
+  <div style="display:flex;flex-direction:column;gap:8px;">
+    <% repos.forEach(function(repo) { %>
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);">
+      <span style="font-weight:600;font-size:13px;flex:1;"><%= repo.name %></span>
+      <% if (repo.remote) { %>
+        <span style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;"><%= repo.remote %></span>
+        <a href="https://github.com/<%= repo.remote %>/settings/hooks" target="_blank" rel="noopener" class="btn btn-secondary btn-sm"><%= t('webhook.configure') %></a>
+      <% } else { %>
+        <span class="badge badge-neutral"><%= t('stats.noData') %></span>
+      <% } %>
+    </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<script>
+function copyWebhookUrl() {
+  var el = document.getElementById('webhookUrl');
+  var btn = document.getElementById('copyBtn');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(el.textContent).then(function() {
+      btn.textContent = "<%= t('webhook.copied') %>";
+      setTimeout(function() { btn.textContent = "<%= t('webhook.copy') %>"; }, 2000);
+    });
+  } else {
+    var range = document.createRange();
+    range.selectNode(el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    document.execCommand('copy');
+    window.getSelection().removeAllRanges();
+    btn.textContent = "<%= t('webhook.copied') %>";
+    setTimeout(function() { btn.textContent = "<%= t('webhook.copy') %>"; }, 2000);
+  }
+}
+</script>
+
+<%- include('partials/footer') %>

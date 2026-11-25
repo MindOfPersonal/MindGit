@@ -1,0 +1,33 @@
+<!-- Flash Messages -->
+<% if (typeof messages !== 'undefined' && messages) { %>
+  <% if (messages.success && messages.success.length > 0) { %>
+    <div class="flash-messages">
+      <% messages.success.forEach(function(msg) { %>
+        <div class="alert alert-success" data-flash-message>
+          <span class="alert-icon">✓</span>
+          <span class="alert-content"><%= msg %></span>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+  <% if (messages.error && messages.error.length > 0) { %>
+    <div class="flash-messages">
+      <% messages.error.forEach(function(msg) { %>
+        <div class="alert alert-danger" data-flash-message>
+          <span class="alert-icon">✗</span>
+          <span class="alert-content"><%= msg %></span>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+  <% if (messages.warning && messages.warning.length > 0) { %>
+    <div class="flash-messages">
+      <% messages.warning.forEach(function(msg) { %>
+        <div class="alert alert-warning" data-flash-message>
+          <span class="alert-icon">!</span>
+          <span class="alert-content"><%= msg %></span>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+<% } %>

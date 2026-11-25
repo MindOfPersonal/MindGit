@@ -1,0 +1,307 @@
+<% var page = 'stats'; %>
+<%- include('partials/header', { title: t('stats.title'), page: 'stats' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('stats.title') %></h1>
+    <p class="page-description"><%= t('stats.subtitle') %></p>
+  </div>
+  <div class="header-actions">
+    <a href="/repos/stats" class="btn btn-primary"><%= t('pr.refresh') %></a>
+    <a href="/repos" class="btn btn-secondary"><%= t('button.back') %></a>
+  </div>
+</div>
+
+<% if (totalCommits === 0) { %>
+  <div class="empty-state">
+    <div class="empty-icon">&#128200;</div>
+    <h3><%= t('stats.noData') %></h3>
+  </div>
+<% } else { %>
+
+<div class="stats-grid" style="margin-bottom:32px;">
+  <div class="stat-card">
+    <div class="stat-label"><%= t('stats.totalCommits') %></div>
+    <div class="stat-value" style="color: var(--accent);"><%= totalCommits %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label"><%= t('stats.totalSyncs') %></div>
+    <div class="stat-value" style="color: var(--cyan);"><%= totalSyncs %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label"><%= t('stats.totalRepos') %></div>
+    <div class="stat-value" style="color: var(--green);"><%= repos.length %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label"><%= t('stats.mostActiveRepo') %></div>
+    <div class="stat-value" style="color: var(--orange);font-size:20px;"><%= mostActiveRepo %></div>
+  </div>
+</div>
+
+<div class="charts-grid">
+  <div class="chart-card">
+    <div class="chart-title"><%= t('stats.commitsPerWeek') %></div>
+    <div class="chart-container">
+      <canvas id="weekChart"></canvas>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title"><%= t('stats.commitsByAccount') %></div>
+    <div class="chart-container">
+      <canvas id="accountChart"></canvas>
+    </div>
+  </div>
+  <div class="chart-card" style="grid-column:1/-1;">
+    <div class="chart-title"><%= t('stats.commitsByRepo') %></div>
+    <div class="chart-container">
+      <canvas id="repoChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<%
+  var fmtSize = function(bytes) {
+    if (!bytes) return '0 B';
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var n = Number(bytes);
+    var i = 0;
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+    return (Math.round(n * 10) / 10) + ' ' + units[i];
+  };
+  var hmDays = [];
+  var hmMax = 0;
+  var hmMap = heatmap || {};
+  Object.keys(hmMap).forEach(function(k) { if (hmMap[k] > hmMax) hmMax = hmMap[k]; });
+  var hmStartDate = new Date(String(heatmapStart) + 'T00:00:00Z');
+  var hmEndDate = new Date(String(heatmapEnd) + 'T00:00:00Z');
+  for (var hd = new Date(hmStartDate); hd <= hmEndDate; hd.setUTCDate(hd.getUTCDate() + 1)) {
+    var hk = hd.toISOString().slice(0, 10);
+    var hc = hmMap[hk] || 0;
+    var level = hc === 0 ? 0 : (hc <= 2 ? 1 : (hc <= 5 ? 2 : (hc <= 9 ? 3 : 4)));
+    hmDays.push({ key: hk, count: hc, level: level });
+  }
+  var hmPad = hmStartDate.getUTCDay();
+%>
+
+<div class="section">
+  <div class="section-title"><%= t('stats.heatmap') %></div>
+  <div class="heatmap-wrap">
+    <div class="heatmap">
+      <% for (var p = 0; p < hmPad; p++) { %><span class="heatmap-cell level-0 heatmap-pad"></span><% } %>
+      <% hmDays.forEach(function(day) { %>
+        <span class="heatmap-cell level-<%= day.level %>" title="<%= day.key %>: <%= day.count %> <%= t('stats.commits') %>"></span>
+      <% }); %>
+    </div>
+    <div class="heatmap-legend">
+      <span><%= t('stats.commits') %>:</span>
+      <span class="heatmap-cell level-0"></span>
+      <span class="heatmap-cell level-1"></span>
+      <span class="heatmap-cell level-2"></span>
+      <span class="heatmap-cell level-3"></span>
+      <span class="heatmap-cell level-4"></span>
+    </div>
+  </div>
+</div>
+
+<div class="charts-grid" style="margin-bottom:32px;">
+  <div class="chart-card">
+    <div class="chart-title"><%= t('stats.contributors') %></div>
+    <% if (!topContributors || !topContributors.length) { %>
+      <div class="muted" style="font-size:13px;"><%= t('stats.noContributors') %></div>
+    <% } else { %>
+      <div class="contributor-list">
+        <% topContributors.forEach(function(c, i) { %>
+          <div class="contributor-row">
+            <div class="contributor-rank"><%= i + 1 %></div>
+            <div class="contributor-info">
+              <div class="contributor-name"><%= c.name %></div>
+              <div class="muted contributor-email"><%= c.email || '' %></div>
+            </div>
+            <div class="contributor-count"><%= c.commits %></div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-title"><%= t('stats.repoSizes') %></div>
+    <% if (!repoStats || !repoStats.length) { %>
+      <div class="muted" style="font-size:13px;">&mdash;</div>
+    <% } else { %>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th><%= t('field.repoName') %></th>
+              <th style="text-align:right;"><%= t('stats.size') %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% repoStats.forEach(function(r) { %>
+              <tr>
+                <td><%= r.favorite ? '&#9733; ' : '' %><%= r.name %></td>
+                <td style="text-align:right;"><code><%= fmtSize(r.size) %></code></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<script src="/vendor/chart.umd.min.js"></script>
+<script>
+function initCharts() {
+  var darkText = '#a0a0b0';
+  var darkGrid = 'rgba(255,255,255,0.06)';
+  var accent = '#8b7cff';
+  var colors = ['#8b7cff', '#22e48a', '#ffd166', '#ff9f43', '#39d7ff', '#ff5f6d', '#ce93d8', '#4caf50'];
+
+  // Week chart
+  var weekCtx = document.getElementById('weekChart');
+  if (weekCtx) {
+    new Chart(weekCtx, {
+      type: 'bar',
+      data: {
+        labels: <%- weekLabels %>,
+        datasets: [{
+          label: '<%= t("stats.commits") %>',
+          data: <%- weekValues %>,
+          backgroundColor: accent + '44',
+          borderColor: accent,
+          borderWidth: 2,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: darkText, font: { size: 10 } }, grid: { color: darkGrid } },
+          y: { ticks: { color: darkText, font: { size: 10 } }, grid: { color: darkGrid }, beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  // Account chart
+  var accCtx = document.getElementById('accountChart');
+  if (accCtx) {
+    new Chart(accCtx, {
+      type: 'doughnut',
+      data: {
+        labels: <%- accountLabels %>,
+        datasets: [{
+          data: <%- accountValues %>,
+          backgroundColor: colors.slice(0, <%= accountLabelCount %>),
+          borderWidth: 0,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: darkText, font: { size: 11 }, padding: 12 }
+          }
+        }
+      }
+    });
+  }
+
+  // Repo chart
+  var repoCtx = document.getElementById('repoChart');
+  if (repoCtx) {
+    new Chart(repoCtx, {
+      type: 'bar',
+      data: {
+        labels: <%- repoLabels %>,
+        datasets: [{
+          label: '<%= t("stats.commits") %>',
+          data: <%- repoValues %>,
+          backgroundColor: [
+            '#8b7cff', '#22e48a', '#ffd166', '#ff9f43',
+            '#39d7ff', '#ff5f6d', '#ce93d8', '#4caf50',
+            '#ff9800', '#a195ff',
+          ],
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: darkText, font: { size: 10 } }, grid: { color: darkGrid }, beginAtZero: true },
+          y: { ticks: { color: darkText, font: { size: 11 } }, grid: { color: darkGrid } }
+        }
+      }
+    });
+  }
+}
+
+if (typeof window.Chart !== 'undefined') {
+  initCharts();
+} else {
+  var fallbackScript = document.createElement('script');
+  fallbackScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js';
+  fallbackScript.onload = initCharts;
+  document.head.appendChild(fallbackScript);
+}
+</script>
+
+<% } %>
+
+<style>
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.chart-card {
+  background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow);
+  border-radius: var(--radius); padding: 22px;
+}
+.chart-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--text-muted); margin-bottom: 16px;
+}
+.chart-container { position: relative; height: 250px; }
+.heatmap-wrap { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.heatmap {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 12px);
+  grid-auto-columns: 12px;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.heatmap-cell {
+  width: 12px; height: 12px; border-radius: 3px;
+  background: var(--bg-tertiary); border: 1px solid var(--border);
+}
+.heatmap-cell.level-1 { background: rgba(139,124,255,0.28); border-color: rgba(139,124,255,0.35); }
+.heatmap-cell.level-2 { background: rgba(139,124,255,0.5); border-color: rgba(139,124,255,0.55); }
+.heatmap-cell.level-3 { background: rgba(139,124,255,0.75); border-color: rgba(139,124,255,0.8); }
+.heatmap-cell.level-4 { background: var(--accent); border-color: var(--accent); }
+.heatmap-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
+.contributor-list { display: flex; flex-direction: column; gap: 8px; }
+.contributor-row { display: flex; align-items: center; gap: 10px; }
+.contributor-rank {
+  width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; background: var(--bg-tertiary); color: var(--text-muted); flex: 0 0 auto;
+}
+.contributor-info { flex: 1; min-width: 0; }
+.contributor-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contributor-email { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contributor-count { font-family: var(--font-mono, monospace); font-size: 12px; color: var(--accent); font-weight: 700; }
+@media (max-width: 768px) {
+  .charts-grid { grid-template-columns: 1fr; }
+  .chart-container { height: 200px; }
+}
+</style>
+
+<%- include('partials/footer') %>

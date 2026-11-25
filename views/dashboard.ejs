@@ -1,0 +1,708 @@
+<% var page = 'dashboard'; %>
+<%- include('partials/header', { title: t('page.dashboard.title'), page: 'dashboard' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('page.dashboard.title') %></h1>
+    <p class="page-description"><%= t('page.dashboard.subtitle') %></p>
+  </div>
+  <div class="header-actions">
+    <a href="/repos/create" class="btn btn-success"><%= t('action.newRepo') %></a>
+    <form method="POST" action="/repos/sync-all" style="display:flex;gap:6px;align-items:center" onsubmit="return confirm(I18N.syncAllConfirm)">
+      <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+      <input type="text" name="commitMessage" placeholder="<%= t('repoView.commitMessagePlaceholder') %>" style="font-size:12px;padding:8px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text);width:180px;">
+      <button type="submit" class="btn btn-primary"><%= t('action.syncAll') %></button>
+    </form>
+    <a href="/repos/watch" class="btn btn-primary" style="background:linear-gradient(135deg,#8b7cff,#2fd6ff);"><%= t('action.watch') %></a>
+  </div>
+</div>
+
+<% if (repos.length > 0) { %>
+<% var clean = repos.filter(function(r){return !r.agentOffline && r.status==='clean'}).length; %>
+<% var pending = repos.filter(function(r){return !r.agentOffline && r.status!=='clean' && r.status!=='no-git'}).length; %>
+<% var offline = repos.filter(function(r){return !r.agentOffline && r.status==='no-git'}).length; %>
+<% var agentOfflineCount = repos.filter(function(r){return r.agentOffline}).length; %>
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label"><%= t('stats.total') %></div>
+    <div class="stat-value" style="color: var(--accent);" id="statTotal"><%= repos.length %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label"><%= t('stats.upToDate') %></div>
+    <div class="stat-value" style="color: var(--green);" id="statClean"><%= clean %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label"><%= t('stats.actionNeeded') %></div>
+    <div class="stat-value" style="color: var(--orange);" id="statPending"><%= pending %></div>
+  </div>
+  <% if (offline > 0) { %>
+  <div class="stat-card">
+    <div class="stat-label"><%= t('stats.notLinked') %></div>
+    <div class="stat-value" style="color: var(--red);" id="statOffline"><%= offline %></div>
+  </div>
+  <% } %>
+  <% if (agentOfflineCount > 0) { %>
+  <div class="stat-card">
+    <div class="stat-label"><%= t('dashboard.section.agentOffline') %></div>
+    <div class="stat-value" style="color: var(--gray);" id="statAgentOffline"><%= agentOfflineCount %></div>
+  </div>
+  <% } %>
+</div>
+<% } %>
+
+<div class="filter-bar">
+  <div class="form-group" style="margin:0;max-width:340px;flex:1;min-width:220px;">
+    <input type="text" id="repoSearch" placeholder="<%= t('search.placeholder') %>" autocomplete="off">
+  </div>
+  <div class="form-group" style="margin:0;min-width:170px;">
+    <select id="tagFilter" aria-label="<%= t('tags.filter') %>">
+      <option value=""><%= t('tags.all') %></option>
+      <% (tagList || []).forEach(function(item) { %>
+        <option value="<%= item.tag %>"><%= item.tag %> (<%= item.count %>)</option>
+      <% }); %>
+    </select>
+  </div>
+  <label class="checkbox-row" style="margin:0;"><input type="checkbox" id="favoriteOnly"> <%= t('favorite.only') %></label>
+</div>
+
+<div class="filter-bar" style="margin-bottom:16px;">
+  <div class="chip-row" id="savedFilterChips">
+    <span class="muted" style="font-size:12px;"><%= t('filters.saved') %>:</span>
+    <% if (!(savedFilters || []).length) { %><span class="muted" style="font-size:12px;"><%= t('filters.none') %></span><% } %>
+    <% (savedFilters || []).forEach(function(f) { %>
+      <span class="chip chip-filter">
+        <button type="button" class="chip-apply" onclick="applySavedFilter(<%= JSON.stringify(f.query || '').replace(/"/g, '&quot;').replace(/</g, '\\u003c') %>, <%= JSON.stringify(f.tag || '').replace(/"/g, '&quot;').replace(/</g, '\\u003c') %>, <%= f.favoriteOnly ? 'true' : 'false' %>)"><%= f.name %></button>
+        <form method="POST" action="/repos/filters/<%= f.id %>/delete" style="display:inline;">
+          <%- csrfInput %>
+          <button type="submit" class="chip-delete" title="<%= t('filters.delete') %>">&times;</button>
+        </form>
+      </span>
+    <% }); %>
+  </div>
+  <form method="POST" action="/repos/filters" id="saveFilterForm" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+    <%- csrfInput %>
+    <input type="text" name="name" id="filterName" placeholder="<%= t('filters.name') %>" required style="width:150px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px;">
+    <input type="hidden" name="query" id="filterQuery" value="">
+    <input type="hidden" name="tag" id="filterTag" value="">
+    <input type="hidden" name="favoriteOnly" id="filterFavorite" value="">
+    <button type="submit" class="btn btn-secondary btn-sm"><%= t('filters.save') %></button>
+  </form>
+</div>
+
+<form method="POST" action="/repos/bulk" id="bulkForm" class="bulk-bar" style="display:none;">
+  <%- csrfInput %>
+  <label class="checkbox-row" style="margin:0;"><input type="checkbox" id="bulkAll" onchange="toggleBulkAll(this.checked)"> <%= t('bulk.selectAll') %></label>
+  <span class="muted" style="font-size:12px;"><span id="bulkCount">0</span> <%= t('bulk.selected') %></span>
+  <select name="action" id="bulkAction" style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px;">
+    <option value="sync"><%= t('bulk.sync') %></option>
+    <option value="remove"><%= t('bulk.remove') %></option>
+    <option value="tag"><%= t('bulk.tag') %></option>
+    <option value="favorite"><%= t('bulk.favorite') %></option>
+    <option value="unfavorite"><%= t('bulk.unfavorite') %></option>
+  </select>
+  <input type="text" name="tags" id="bulkTags" placeholder="<%= t('tags.placeholder') %>" style="width:150px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px;">
+  <button type="submit" class="btn btn-primary btn-sm"><%= t('bulk.apply') %></button>
+</form>
+
+<%
+  var actionRepos = repos.filter(function(r){ return !r.agentOffline && r.status !== 'clean'; });
+  var agentOfflineRepos = repos.filter(function(r){ return r.agentOffline; });
+  var cleanRepos = repos.filter(function(r){ return !r.agentOffline && r.status === 'clean'; });
+  var csrfInputHtml = (typeof csrfInput !== 'undefined' ? csrfInput : '');
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function jsEscape(s) {
+    return String(s == null ? '' : s)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderRepoCard(repo) {
+    var ringNum = '';
+    var ringArrow = '';
+    if (repo.status === 'clean') { ringNum = '&#10003;'; }
+    else if (repo.status === 'changes' || repo.status === 'both') { ringNum = esc(repo.changes || '!'); }
+    else if (repo.status === 'behind') { ringNum = '&#8595;'; }
+    else if (repo.status === 'no-git') { ringNum = '!'; }
+    if (repo.status === 'both') { ringArrow = '&#8595;'; }
+
+    var repoTags = repo.tags || [];
+    var searchData = (repo.name + ' ' + (repo.group_name || '') + ' ' + (repo.remote || '') + ' ' + repo.color + ' ' + repo.status + ' ' + repoTags.join(' ') + (repo.favorite ? ' favorite' : '')).toLowerCase();
+
+    var statusPill = '<span class="repo-status-pill ' + esc(repo.color) + '">' + esc(t('repoStatus.' + repo.color)) + '</span>';
+    var statusIndicator = repo.status === 'clean'
+      ? '<div class="repo-status-dot green"></div>'
+      : '<div class="repo-status-ring ' + esc(repo.color) + '"><span class="ring-num">' + ringNum + '</span>' + (ringArrow ? '<span class="ring-arrow">' + ringArrow + '</span>' : '') + '</div>';
+
+    var h = '';
+    h += '<div class="repo-card status-' + esc(repo.color) + '" data-id="' + esc(repo.id) + '" data-search="' + esc(searchData) + '" data-tags="' + esc(repoTags.join(' ')) + '" data-favorite="' + (repo.favorite ? '1' : '0') + '">';
+    h += '<input type="checkbox" class="repo-select" value="' + esc(repo.id) + '" onchange="updateBulk()" title="' + esc(t('bulk.selectAll')) + '">';
+    h += '<button type="button" class="fav-btn' + (repo.favorite ? ' active' : '') + '" onclick="toggleFavorite(' + esc(repo.id) + ', this)" title="' + esc(repo.favorite ? t('favorite.remove') : t('favorite.add')) + '">' + (repo.favorite ? '&#9733;' : '&#9734;') + '</button>';
+    h += statusPill;
+    h += statusIndicator;
+    h += '<div class="repo-info">';
+    h += '<h3><a href="/repos/view/' + esc(repo.id) + '">' + esc(repo.name) + '</a></h3>';
+    h += '<div class="repo-meta-line" title="' + esc(repo.path) + '"><span>&#128193; ' + esc(repo.path) + '</span></div>';
+    if (repo.remote) {
+      h += '<div class="repo-meta-line"><span style="color:var(--cyan)">&#128288; ' + esc(repo.remote) + '</span></div>';
+    }
+    h += '<div class="repo-meta-row">';
+    h += '<span class="repo-owner">' + (repo.account ? '@' + esc(repo.account.github_user) : '') + '</span>';
+    h += '<span class="repo-branch">' + (repo.branch ? '&#11166; ' + esc(repo.branch) : '') + '</span>';
+    h += '</div>';
+    if (repoTags.length) {
+      h += '<div class="chip-row repo-tags">';
+      repoTags.forEach(function(tag) { h += '<span class="chip chip-sm">' + esc(tag) + '</span>'; });
+      h += '</div>';
+    }
+    h += '<div class="repo-bottom-row">';
+    h += '<div class="repo-badges-left">';
+    if (repo.changes > 0) {
+      h += '<span class="badge badge-yellow">&#9998; ' + esc(repo.changes) + ' ' + esc(t('repoView.changes')) + '</span>';
+    } else {
+      h += '<span class="badge badge-green">' + esc(t('repoView.upToDate')) + '</span>';
+    }
+    if (repo.behindCount > 0) { h += '<span class="badge badge-cyan">&#8595; ' + esc(repo.behindCount) + ' ' + esc(t('repoView.behind')) + '</span>'; }
+    if (repo.aheadCount > 0) { h += '<span class="badge badge-green">&#8593; ' + esc(repo.aheadCount) + ' ' + esc(t('repoView.ahead')) + '</span>'; }
+    h += '</div>';
+    h += '<div class="repo-actions">';
+    h += '<button id="syncBtn-' + esc(repo.id) + '" onclick="syncRepo(' + esc(repo.id) + ')" class="btn btn-primary btn-sm">' + esc(t('button.sync')) + '</button>';
+    h += '<a href="/repos/view/' + esc(repo.id) + '" class="btn btn-secondary btn-sm">' + esc(t('button.details')) + '</a>';
+    h += '<form method="POST" action="/repos/remove/' + esc(repo.id) + '" style="display:inline-flex" onsubmit="return confirm(I18N.deleteRepoConfirm.replace(\'{name}\', \'' + jsEscape(repo.name) + '\'))">';
+    h += csrfInputHtml;
+    h += '<button type="submit" class="btn btn-danger btn-sm" title="' + esc(t('button.delete')) + '">&#10005;</button>';
+    h += '</form>';
+    h += '</div>';
+    h += '</div>';
+    h += '</div>';
+    h += '</div>';
+    return h;
+  }
+%>
+
+<% if (repos.length === 0) { %>
+  <div class="empty-state">
+    <div class="empty-icon">&#128194;</div>
+    <h3><%= t('empty.title') %></h3>
+    <p><%= t('empty.desc') %></p>
+    <a href="/repos/create" class="btn btn-success"><%= t('empty.cta') %></a>
+  </div>
+<% } else { %>
+  <div id="repoSections">
+    <details class="repo-collapse" open data-default-open="true">
+      <summary class="repo-collapse-header">
+        <span class="repo-collapse-chevron">&#9656;</span>
+        <span class="repo-collapse-header-title"><%= t('dashboard.section.actionNeeded') %></span>
+        <span class="repo-collapse-count badge <%= actionRepos.length > 0 ? 'badge-orange' : 'badge-neutral' %>" id="actionCount"><%= actionRepos.length %></span>
+      </summary>
+      <div class="repo-collapse-body">
+        <div class="repo-grid" id="actionRepoGrid" <%= actionRepos.length === 0 ? 'style="display:none"' : '' %>>
+          <% actionRepos.forEach(function(repo){ %><%- renderRepoCard(repo) %><% }); %>
+        </div>
+        <div class="section-empty" id="actionEmpty" <%= actionRepos.length === 0 ? '' : 'style="display:none"' %>>
+          <%= t('dashboard.section.allUpToDate') %>
+        </div>
+      </div>
+      
+    </details>
+    <details class="repo-collapse" data-default-open="false">
+     <summary class="repo-collapse-header">
+      <span class="repo-collapse-chevron">&#9656;</span>
+      <span class="repo-collapse-header-title"><%= t('dashboard.section.upToDate') %></span>
+      <span class="repo-collapse-count badge badge-green" id="cleanCount"><%= cleanRepos.length %></span>
+    </summary>
+    <div class="repo-collapse-body">
+      <div class="repo-grid" id="cleanRepoGrid" <%= cleanRepos.length === 0 ? 'style="display:none"' : '' %>>
+         <% cleanRepos.forEach(function(repo){ %><%- renderRepoCard(repo) %><% }); %>
+        </div>
+        <div class="section-empty" id="cleanEmpty" <%= cleanRepos.length === 0 ? '' : 'style="display:none"' %>>
+          <%= t('dashboard.section.noUpToDate') %>
+        </div>
+      </div>
+    </details>
+
+    <details class="repo-collapse" data-default-open="false">
+      <summary class="repo-collapse-header">
+        <span class="repo-collapse-chevron">&#9656;</span>
+        <span class="repo-collapse-header-title"><%= t('dashboard.section.agentOffline') %></span>
+        <span class="repo-collapse-count badge badge-gray" id="agentOfflineCount"><%= agentOfflineRepos.length %></span>
+      </summary>
+      <div class="repo-collapse-body">
+        <div class="repo-grid" id="agentOfflineGrid" <%= agentOfflineRepos.length === 0 ? 'style="display:none"' : '' %>>
+          <% agentOfflineRepos.forEach(function(repo){ %><%- renderRepoCard(repo) %><% }); %>
+        </div>
+        <div class="section-empty" id="agentOfflineEmpty" <%= agentOfflineRepos.length === 0 ? '' : 'style="display:none"' %>>
+          <%= t('dashboard.section.noAgentOffline') %>
+        </div>
+      </div>
+    </details>
+  </div>
+<% } %>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+var INITIAL_REPOS = <%- JSON.stringify(repos).replace(/</g, '\\u003c') %>;
+
+var T = {
+  status: {
+    green: "<%= t('repoStatus.green') %>",
+    yellow: "<%= t('repoStatus.yellow') %>",
+    orange: "<%= t('repoStatus.orange') %>",
+    cyan: "<%= t('repoStatus.cyan') %>",
+    red: "<%= t('repoStatus.red') %>",
+    gray: "<%= t('repoStatus.gray') %>"
+  },
+  changes: "<%= t('repoView.changes') %>",
+  upToDate: "<%= t('repoView.upToDate') %>",
+  behind: "<%= t('repoView.behind') %>",
+  ahead: "<%= t('repoView.ahead') %>",
+  sync: "<%= t('button.sync') %>",
+  details: "<%= t('button.details') %>",
+  del: "<%= t('button.delete') %>",
+  favAdd: "<%= t('favorite.add') %>",
+  favRemove: "<%= t('favorite.remove') %>",
+  selectAll: "<%= t('bulk.selectAll') %>",
+  bulkRemoveConfirm: "<%= t('bulk.confirmRemove') %>"
+};
+
+var repoDataMap = {};
+INITIAL_REPOS.forEach(function(r) { repoDataMap[r.id] = r; });
+
+var actionGrid = document.getElementById('actionRepoGrid');
+var cleanGrid = document.getElementById('cleanRepoGrid');
+var agentOfflineGrid = document.getElementById('agentOfflineGrid');
+var actionCount = document.getElementById('actionCount');
+var cleanCount = document.getElementById('cleanCount');
+var agentOfflineCount = document.getElementById('agentOfflineCount');
+var actionEmpty = document.getElementById('actionEmpty');
+var cleanEmpty = document.getElementById('cleanEmpty');
+var agentOfflineEmpty = document.getElementById('agentOfflineEmpty');
+var repoSearchInput = document.getElementById('repoSearch');
+var sections = Array.prototype.slice.call(document.querySelectorAll('.repo-collapse'));
+var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+function jsEscape(s) {
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;');
+}
+
+function renderRepoCard(repo) {
+  var color = repo.color || 'gray';
+  var status = repo.status || 'ok-no-remote';
+  var ringNum = '';
+  var ringArrow = '';
+  if (status === 'clean') { ringNum = '&#10003;'; }
+  else if (status === 'changes' || status === 'both') { ringNum = esc(repo.changes || '!'); }
+  else if (status === 'behind') { ringNum = '&#8595;'; }
+  else if (status === 'no-git') { ringNum = '!'; }
+  if (status === 'both') { ringArrow = '&#8595;'; }
+
+  var repoTags = repo.tags || [];
+  var searchData = (repo.name + ' ' + (repo.group_name || '') + ' ' + (repo.remote || '') + ' ' + color + ' ' + status + ' ' + repoTags.join(' ') + (repo.favorite ? ' favorite' : '')).toLowerCase();
+
+  var h = '';
+  h += '<div class="repo-card status-' + esc(color) + '" data-id="' + esc(repo.id) + '" data-search="' + esc(searchData) + '" data-tags="' + esc(repoTags.join(' ')) + '" data-favorite="' + (repo.favorite ? '1' : '0') + '">';
+  h += '<input type="checkbox" class="repo-select" value="' + esc(repo.id) + '" onchange="updateBulk()" title="' + esc(T.selectAll) + '">';
+  h += '<button type="button" class="fav-btn' + (repo.favorite ? ' active' : '') + '" onclick="toggleFavorite(' + esc(repo.id) + ', this)" title="' + esc(repo.favorite ? T.favRemove : T.favAdd) + '">' + (repo.favorite ? '&#9733;' : '&#9734;') + '</button>';
+  h += '<span class="repo-status-pill ' + esc(color) + '">' + esc(T.status[color] || color) + '</span>';
+  if (status === 'clean') {
+    h += '<div class="repo-status-dot green"></div>';
+  } else {
+    h += '<div class="repo-status-ring ' + esc(color) + '"><span class="ring-num">' + ringNum + '</span>' + (ringArrow ? '<span class="ring-arrow">' + ringArrow + '</span>' : '') + '</div>';
+  }
+  h += '<div class="repo-info">';
+  h += '<h3><a href="/repos/view/' + esc(repo.id) + '">' + esc(repo.name) + '</a></h3>';
+  h += '<div class="repo-meta-line" title="' + esc(repo.path) + '"><span>&#128193; ' + esc(repo.path) + '</span></div>';
+  if (repo.remote) {
+    h += '<div class="repo-meta-line"><span style="color:var(--cyan)">&#128288; ' + esc(repo.remote) + '</span></div>';
+  }
+  h += '<div class="repo-meta-row">';
+  h += '<span class="repo-owner">' + (repo.account ? '@' + esc(repo.account.github_user) : '') + '</span>';
+  h += '<span class="repo-branch">' + (repo.branch ? '&#11166; ' + esc(repo.branch) : '') + '</span>';
+  h += '</div>';
+  if (repoTags.length) {
+    h += '<div class="chip-row repo-tags">';
+    repoTags.forEach(function(tag) { h += '<span class="chip chip-sm">' + esc(tag) + '</span>'; });
+    h += '</div>';
+  }
+  h += '<div class="repo-bottom-row">';
+  h += '<div class="repo-badges-left">';
+  if (repo.changes > 0) {
+    h += '<span class="badge badge-yellow">&#9998; ' + esc(repo.changes) + ' ' + esc(T.changes) + '</span>';
+  } else {
+    h += '<span class="badge badge-green">' + esc(T.upToDate) + '</span>';
+  }
+  if (repo.behindCount > 0) { h += '<span class="badge badge-cyan">&#8595; ' + esc(repo.behindCount) + ' ' + esc(T.behind) + '</span>'; }
+  if (repo.aheadCount > 0) { h += '<span class="badge badge-green">&#8593; ' + esc(repo.aheadCount) + ' ' + esc(T.ahead) + '</span>'; }
+  h += '</div>';
+  h += '<div class="repo-actions">';
+  h += '<button id="syncBtn-' + esc(repo.id) + '" onclick="syncRepo(' + esc(repo.id) + ')" class="btn btn-primary btn-sm">' + esc(T.sync) + '</button>';
+  h += '<a href="/repos/view/' + esc(repo.id) + '" class="btn btn-secondary btn-sm">' + esc(T.details) + '</a>';
+  h += '<form method="POST" action="/repos/remove/' + esc(repo.id) + '" style="display:inline-flex" onsubmit="return confirm(I18N.deleteRepoConfirm.replace(\'{name}\', \'' + jsEscape(repo.name) + '\'))">';
+  h += '<input type="hidden" name="_csrf" value="' + esc(csrfToken) + '">';
+  h += '<button type="submit" class="btn btn-danger btn-sm" title="' + esc(T.del) + '">&#10005;</button>';
+  h += '</form>';
+  h += '</div>';
+  h += '</div>';
+  h += '</div>';
+  h += '</div>';
+  return h;
+}
+
+function setText(id, val) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function updateCounts() {
+  var ids = Object.keys(repoDataMap);
+  var total = ids.length;
+  var clean = 0, offline = 0, agentOffline = 0;
+  ids.forEach(function(id) {
+    var r = repoDataMap[id];
+    if (r.agentOffline) { agentOffline++; return; }
+    if (r.status === 'clean') clean++;
+    else if (r.status === 'no-git') offline++;
+  });
+  var pending = total - clean - offline - agentOffline;
+
+  setText('statTotal', total);
+  setText('statClean', clean);
+  setText('statPending', pending);
+  setText('statOffline', offline);
+  setText('statAgentOffline', agentOffline);
+
+  var aCount = actionGrid ? actionGrid.querySelectorAll('.repo-card').length : 0;
+  var cCount = cleanGrid ? cleanGrid.querySelectorAll('.repo-card').length : 0;
+  var aoCount = agentOfflineGrid ? agentOfflineGrid.querySelectorAll('.repo-card').length : 0;
+  if (actionCount) {
+    actionCount.textContent = aCount;
+    actionCount.className = 'repo-collapse-count badge ' + (aCount > 0 ? 'badge-orange' : 'badge-neutral');
+  }
+  if (cleanCount) cleanCount.textContent = cCount;
+  if (agentOfflineCount) agentOfflineCount.textContent = aoCount;
+  if (actionGrid) actionGrid.style.display = aCount > 0 ? '' : 'none';
+  if (actionEmpty) actionEmpty.style.display = aCount > 0 ? 'none' : '';
+  if (cleanGrid) cleanGrid.style.display = cCount > 0 ? '' : 'none';
+  if (cleanEmpty) cleanEmpty.style.display = cCount > 0 ? 'none' : '';
+  if (agentOfflineGrid) agentOfflineGrid.style.display = aoCount > 0 ? '' : 'none';
+  if (agentOfflineEmpty) agentOfflineEmpty.style.display = aoCount > 0 ? 'none' : '';
+}
+
+var tagFilterEl = document.getElementById('tagFilter');
+var favoriteOnlyEl = document.getElementById('favoriteOnly');
+
+function cardMatches(card) {
+  if (!card) return false;
+  var term = repoSearchInput ? repoSearchInput.value.toLowerCase().trim() : '';
+  var tag = tagFilterEl ? tagFilterEl.value.toLowerCase().trim() : '';
+  var favOnly = favoriteOnlyEl ? favoriteOnlyEl.checked : false;
+  if (favOnly && card.dataset.favorite !== '1') return false;
+  if (tag) {
+    var tags = (card.dataset.tags || '').toLowerCase().split(/\s+/).filter(Boolean);
+    if (tags.indexOf(tag) === -1) return false;
+  }
+  if (!term) return true;
+  return (card.dataset.search || '').toLowerCase().indexOf(term) !== -1;
+}
+
+function applySearchToCard(card) {
+  if (!card) return;
+  card.style.display = cardMatches(card) ? '' : 'none';
+}
+
+function applySearch() {
+  var term = repoSearchInput ? repoSearchInput.value.toLowerCase().trim() : '';
+  var tag = tagFilterEl ? tagFilterEl.value : '';
+  var favOnly = favoriteOnlyEl ? favoriteOnlyEl.checked : false;
+  var filtering = !!term || !!tag || favOnly;
+  var cards = document.querySelectorAll('.repo-card');
+  var any = false;
+  cards.forEach(function(card) {
+    var visible = cardMatches(card);
+    card.style.display = visible ? '' : 'none';
+    if (visible) any = true;
+  });
+  sections.forEach(function(det) {
+    if (!filtering) return; // geen filter: laat open/gesloten staat met rust
+    var hasVisible = Array.prototype.some.call(det.querySelectorAll('.repo-card'), function(c) { return c.style.display !== 'none'; });
+    det.open = hasVisible;
+  });
+  var empty = document.querySelector('.empty-state');
+  if (empty) empty.style.display = any ? 'none' : '';
+}
+
+function applySavedFilter(query, tag, favoriteOnly) {
+  if (repoSearchInput) repoSearchInput.value = query || '';
+  if (tagFilterEl) tagFilterEl.value = tag || '';
+  if (favoriteOnlyEl) favoriteOnlyEl.checked = !!favoriteOnly;
+  applySearch();
+  syncFilterForm();
+}
+
+function syncFilterForm() {
+  var q = document.getElementById('filterQuery');
+  var tg = document.getElementById('filterTag');
+  var fv = document.getElementById('filterFavorite');
+  if (q) q.value = repoSearchInput ? repoSearchInput.value.trim() : '';
+  if (tg) tg.value = tagFilterEl ? tagFilterEl.value : '';
+  if (fv) fv.value = favoriteOnlyEl && favoriteOnlyEl.checked ? '1' : '0';
+}
+
+// --- Bulk selectie --------------------------------------------------------
+function selectedRepoIds() {
+  return Array.prototype.slice.call(document.querySelectorAll('.repo-select:checked')).map(function(cb) { return cb.value; });
+}
+
+function updateBulk() {
+  var ids = selectedRepoIds();
+  var form = document.getElementById('bulkForm');
+  var count = document.getElementById('bulkCount');
+  if (count) count.textContent = ids.length;
+  if (form) form.style.display = ids.length ? 'flex' : 'none';
+}
+
+function toggleBulkAll(checked) {
+  document.querySelectorAll('.repo-select').forEach(function(cb) {
+    if (cb.closest('.repo-card').style.display !== 'none') cb.checked = checked;
+  });
+  updateBulk();
+}
+
+async function toggleFavorite(id, btn) {
+  try {
+    var res = await fetch('/repos/favorite/' + id, { method: 'POST' });
+    var data = await res.json();
+    if (!data.ok) return;
+    var card = btn.closest('.repo-card');
+    if (card) card.dataset.favorite = data.favorite ? '1' : '0';
+    btn.classList.toggle('active', data.favorite);
+    btn.innerHTML = data.favorite ? '&#9733;' : '&#9734;';
+    btn.title = data.favorite ? T.favRemove : T.favAdd;
+    if (repoDataMap[id]) repoDataMap[id].favorite = data.favorite;
+    applySearch();
+  } catch (e) { /* niet fataal */ }
+}
+
+function renderCard(repo) {
+  if (!actionGrid || !cleanGrid) return;
+  var targetGrid;
+  if (repo.agentOffline) targetGrid = agentOfflineGrid;
+  else targetGrid = repo.status === 'clean' ? cleanGrid : actionGrid;
+  var existing = document.querySelector('.repo-card[data-id="' + repo.id + '"]');
+  var wrapper = document.createElement('div');
+  wrapper.innerHTML = renderRepoCard(repo);
+  var newCard = wrapper.firstChild;
+
+  if (existing) {
+    if (existing.parentNode !== targetGrid) {
+      existing.parentNode.removeChild(existing);
+      if (targetGrid) targetGrid.appendChild(newCard);
+    } else {
+      existing.parentNode.replaceChild(newCard, existing);
+    }
+  } else {
+    if (targetGrid) targetGrid.appendChild(newCard);
+  }
+  applySearchToCard(newCard);
+  updateCounts();
+}
+
+function applyRepoUpdate(data) {
+  var prev = repoDataMap[data.id] || {};
+  var st = data.status || {};
+  var repo = {
+    id: data.id,
+    name: data.name !== undefined ? data.name : prev.name,
+    path: data.path !== undefined ? data.path : prev.path,
+    remote: data.remote !== undefined ? data.remote : prev.remote,
+    group_name: prev.group_name || '',
+    account: prev.account || null,
+    favorite: data.favorite !== undefined ? data.favorite : !!prev.favorite,
+    tags: data.tags !== undefined ? data.tags : (prev.tags || []),
+    agentOffline: data.agentOffline !== undefined ? data.agentOffline : prev.agentOffline,
+    status: st.status || prev.status,
+    color: st.color || prev.color,
+    changes: st.changes != null ? st.changes : (prev.changes || 0),
+    behindCount: st.behindCount != null ? st.behindCount : (prev.behindCount || 0),
+    aheadCount: st.aheadCount != null ? st.aheadCount : (prev.aheadCount || 0),
+    branch: st.branch || prev.branch || '',
+  };
+  repoDataMap[data.id] = repo;
+  renderCard(repo);
+}
+
+function sameRepo(a, b) {
+  if (!a || !b) return false;
+  var accA = (a.account && a.account.github_user) || '';
+  var accB = (b.account && b.account.github_user) || '';
+  return a.id === b.id &&
+    a.name === b.name &&
+    a.path === b.path &&
+    a.remote === b.remote &&
+    a.group_name === b.group_name &&
+    a.agentOffline === b.agentOffline &&
+    a.status === b.status &&
+    a.color === b.color &&
+    a.changes === b.changes &&
+    a.behindCount === b.behindCount &&
+    a.aheadCount === b.aheadCount &&
+    a.branch === b.branch &&
+    !!a.favorite === !!b.favorite &&
+    (a.tags || []).join('|') === (b.tags || []).join('|') &&
+    accA === accB;
+}
+
+function applyRefresh(repos) {
+  var hasGrid = !!(actionGrid && cleanGrid);
+  if (hasGrid !== (repos.length > 0)) {
+    window.location.reload();
+    return;
+  }
+  if (!hasGrid) return;
+  var seen = {};
+  repos.forEach(function(r) {
+    seen[r.id] = true;
+    if (!sameRepo(repoDataMap[r.id], r)) {
+      repoDataMap[r.id] = r;
+      renderCard(r);
+    }
+  });
+  Object.keys(repoDataMap).forEach(function(id) {
+    if (!seen[id]) {
+      var el = document.querySelector('.repo-card[data-id="' + id + '"]');
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+      delete repoDataMap[id];
+    }
+  });
+  updateCounts();
+}
+
+function refreshStatuses() {
+  fetch('/repos/refresh').then(function(r) {
+    if (!r.ok) {
+      // Als 401, is de sessie verlopen - geen fout tonen
+      return;
+    }
+    return r.json();
+  }).then(function(d) {
+    if (d && d.repos) applyRefresh(d.repos);
+  }).catch(function() {});
+}
+
+function syncRepo(id) {
+  var btn = document.getElementById('syncBtn-' + id);
+  var cmMsg = prompt("<%= t('repoView.commitMessageShort') %>");
+  if (cmMsg === null) return;
+  btn.disabled = true;
+  var orig = btn.textContent;
+  btn.textContent = '...';
+  btn.classList.add('btn-loading');
+  async function run() {
+    try {
+      var res = await fetch('/repos/sync/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, body: JSON.stringify({ commitMessage: cmMsg.trim() || undefined }) });
+      var data = await res.json();
+      if (data.ok) refreshStatuses();
+      else alert(I18N.syncFailed + (data.reason || I18N.unknownError));
+    } catch (err) {
+      alert(I18N.errorPrefix + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = orig;
+      btn.classList.remove('btn-loading');
+    }
+  }
+  run();
+}
+
+(function() {
+  if (repoSearchInput) repoSearchInput.addEventListener('input', function() { applySearch(); syncFilterForm(); });
+  if (tagFilterEl) tagFilterEl.addEventListener('change', function() { applySearch(); syncFilterForm(); });
+  if (favoriteOnlyEl) favoriteOnlyEl.addEventListener('change', function() { applySearch(); syncFilterForm(); });
+  syncFilterForm();
+  applySearch();
+
+  var bulkForm = document.getElementById('bulkForm');
+  var bulkAction = document.getElementById('bulkAction');
+  var bulkTags = document.getElementById('bulkTags');
+  function syncBulkFields() {
+    if (bulkTags) bulkTags.style.display = bulkAction && bulkAction.value === 'tag' ? '' : 'none';
+  }
+  if (bulkAction) { bulkAction.addEventListener('change', syncBulkFields); syncBulkFields(); }
+  if (bulkForm) {
+    bulkForm.addEventListener('submit', function(e) {
+      bulkForm.querySelectorAll('input[name="ids"]').forEach(function(el) { el.remove(); });
+      var ids = selectedRepoIds();
+      if (!ids.length) { e.preventDefault(); return; }
+      if (bulkAction && bulkAction.value === 'remove' && !confirm(T.bulkRemoveConfirm)) { e.preventDefault(); return; }
+      ids.forEach(function(id) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'ids';
+        input.value = id;
+        bulkForm.appendChild(input);
+      });
+    });
+  }
+
+  var socket = io();
+  socket.on('connect', function() {
+    Object.keys(repoDataMap).forEach(function(id) {
+      socket.emit('join-repo', id);
+    });
+    // Refreh alleen na 2 seconden bij connect, niet direct
+    setTimeout(refreshStatuses, 2000);
+  });
+  socket.on('repo-update', function(data) {
+    applyRepoUpdate(data);
+  });
+
+  // Socket.IO is de primaire bron. Pollen alleen als fallback wanneer de
+  // verbinding weg is, zodat we niet tegelijk via socket én interval verversen.
+  var lastRefresh = 0;
+  setInterval(function() {
+    if (!socket.connected && !document.hidden) {
+      var now = Date.now();
+      if (now - lastRefresh > 60000) { // Minimaal 1 minuten tussen pollen
+        refreshStatuses();
+        lastRefresh = now;
+      }
+    }
+  }, 60000); // Elke minuut checken
+
+  // Bij terugkeren naar het tabblad direct verversen (gemiste events inhalen).
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+      var now = Date.now();
+      if (now - lastRefresh > 30000) { // Max 30 seconden tussen refreshes
+        refreshStatuses();
+        lastRefresh = now;
+      }
+    }
+  });
+
+  window.addEventListener('online', function() {
+    if (!socket.connected) socket.connect();
+  });
+})();
+</script>
+<%- include('partials/footer') %>

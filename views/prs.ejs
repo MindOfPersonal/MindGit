@@ -1,0 +1,121 @@
+<% var page = 'prs'; %>
+<%- include('partials/header', { title: t('pr.title'), page: 'prs' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('pr.title') %></h1>
+    <p class="page-description"><%= t('pr.subtitle') %></p>
+  </div>
+  <div class="header-actions">
+    <a href="/repos/prs" class="btn btn-primary"><%= t('pr.refresh') %></a>
+    <a href="/repos" class="btn btn-secondary"><%= t('button.back') %></a>
+  </div>
+</div>
+
+<% if (error) { %>
+  <div class="alert alert-danger"><%= error %></div>
+<% } %>
+
+<% if (pullRequests.length === 0) { %>
+  <div class="empty-state">
+    <div class="empty-icon">&#128196;</div>
+    <h3><%= t('pr.empty') %></h3>
+    <% if (repos.length === 0) { %>
+      <p><%= t('pr.noRepo') %></p>
+    <% } %>
+  </div>
+<% } else { %>
+  <div class="pr-grid">
+    <% pullRequests.forEach(function(pr) { %>
+      <div class="pr-card">
+        <div class="pr-header">
+          <span class="pr-number">#<%= pr.number %></span>
+          <% if (pr.draft) { %><span class="badge badge-neutral">DRAFT</span><% } %>
+          <% (pr.labels || []).forEach(function(label) { %>
+            <span class="badge badge-neutral"><%= label %></span>
+          <% }); %>
+        </div>
+        <div class="pr-title">
+          <a href="<%= pr.htmlUrl %>" target="_blank" rel="noopener"><%= pr.title %></a>
+        </div>
+        <div class="pr-meta">
+          <span class="pr-repo"><%= pr.repoName %></span>
+          <span class="pr-author"><%= t('pr.by') %> <strong><%= pr.author %></strong></span>
+          <span class="pr-date"><%= new Date(pr.createdAt).toLocaleDateString() %></span>
+        </div>
+        <div class="pr-branches">
+          <span class="branch-badge"><%= pr.headBranch %></span>
+          <span class="arrow">&rarr;</span>
+          <span class="branch-badge"><%= pr.baseBranch %></span>
+        </div>
+        <div class="pr-actions">
+          <a href="<%= pr.htmlUrl %>" target="_blank" rel="noopener" class="btn btn-secondary btn-sm"><%= t('pr.viewOnGitHub') %></a>
+          <% if (!pr.draft) { %>
+            <button onclick="mergePR(<%= pr.repoId %>, <%= pr.number %>, this)" class="btn btn-success btn-sm"><%= t('pr.merge') %></button>
+          <% } %>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+<% } %>
+
+<script>
+var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+async function mergePR(repoId, number, btn) {
+  var btn = btn || (typeof event !== 'undefined' ? event.target : null);
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = "<%= t('pr.merging') %>";
+  btn.classList.add('btn-loading');
+  try {
+    var res = await fetch('/repos/prs/' + repoId + '/merge/' + number, { method: 'POST', headers: { 'X-CSRF-Token': csrfToken } });
+    var data = await res.json();
+    if (data.ok) {
+      btn.textContent = "<%= t('pr.merged').replace('%s', '#') %>" + number;
+      btn.className = 'btn btn-success btn-sm';
+      setTimeout(function() { location.reload(); }, 1500);
+    } else {
+      alert("<%= t('pr.mergeFailed') %>" + (data.error || ''));
+      btn.disabled = false;
+      btn.textContent = "<%= t('pr.merge') %>";
+      btn.classList.remove('btn-loading');
+    }
+  } catch (err) {
+    alert("<%= t('pr.mergeFailed') %>" + err.message);
+    btn.disabled = false;
+    btn.textContent = "<%= t('pr.merge') %>";
+    btn.classList.remove('btn-loading');
+  }
+}
+</script>
+
+<style>
+.pr-grid { display: flex; flex-direction: column; gap: 12px; }
+.pr-card {
+  background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius); padding: 20px 24px;
+  box-shadow: var(--glass-shadow);
+  transition: all var(--transition);
+}
+.pr-card:hover { border-color: var(--border-light); box-shadow: var(--shadow); background: var(--glass-bg-hover); transform: translateY(-1px); }
+.pr-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pr-number { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: var(--accent); }
+.pr-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.pr-title a { color: var(--text-primary); text-decoration: none; transition: color var(--transition); }
+.pr-title a:hover { color: var(--accent); }
+.pr-meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); margin-bottom: 10px; flex-wrap: wrap; }
+.pr-repo { color: var(--cyan); font-family: 'JetBrains Mono', monospace; }
+.pr-author { color: var(--text-secondary); }
+.pr-date { color: var(--text-muted); }
+.pr-branches { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.branch-badge {
+  background: var(--bg-tertiary); border: 1px solid var(--border-light);
+  border-radius: 6px; padding: 3px 10px; font-size: 11px;
+  font-family: 'JetBrains Mono', monospace; color: var(--text-secondary);
+}
+.arrow { color: var(--text-muted); font-size: 16px; }
+.pr-actions { display: flex; gap: 8px; }
+</style>
+
+<%- include('partials/footer') %>

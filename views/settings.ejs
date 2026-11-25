@@ -1,0 +1,170 @@
+<% var page = 'settings'; %>
+<%- include('partials/header', { title: t('page.settings.title'), page: 'settings' }) %>
+
+<div class="page-header">
+  <div>
+    <h1><%= t('page.settings.title') %></h1>
+    <p class="page-description"><%= t('page.settings.subtitle') %></p>
+  </div>
+</div>
+
+<div class="form-container" style="max-width: 820px;">
+  <!-- Taalselectie -->
+  <div class="form-card">
+    <h2><%= t('language.sectionTitle') %></h2>
+    <p class="subtitle"><%= t('language.sectionDesc') %></p>
+
+    <form method="POST" action="/repos/settings/language">
+      <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+      <div class="form-group">
+        <label for="language"><%= t('language.label') %></label>
+        <select id="language" name="language">
+          <% (langList || []).forEach(function(l) { %>
+            <option value="<%= l.code %>" <%= currentLang === l.code ? 'selected' : '' %>><%= l.label %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><%= t('button.save') %></button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Thema selectie -->
+  <div class="form-card">
+    <h2><%= t('theme.sectionTitle') %></h2>
+    <p class="subtitle"><%= t('theme.sectionDesc') %></p>
+
+    <form method="POST" action="/repos/settings/theme">
+      <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+      <div class="form-group">
+        <label for="theme"><%= t('theme.label') %></label>
+        <select id="theme" name="theme">
+          <% (availableThemes || []).forEach(function(theme) { %>
+            <option value="<%= theme %>" <%= currentTheme === theme ? 'selected' : '' %>><%= theme.charAt(0).toUpperCase() + theme.slice(1) %></option>
+          <% }); %>
+        </select>
+        <% if (christmasEnabledGlobally) { %>
+          <div class="help-text" style="margin-top: 8px; padding: 8px; background: rgba(255, 153, 204, 0.1); border-radius: 4px; border-left: 3px solid #ff99cc;">
+            Kerstthema is globaal ingeschakeld en zichtbaar tot 26 december.
+          </div>
+        <% } %>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><%= t('button.save') %></button>
+      </div>
+    </form>
+  </div>
+
+  <div class="form-card">
+    <h2><%= t('settings.accountsTitle') %></h2>
+    <p class="subtitle"><%= t('settings.accountsDesc') %></p>
+
+    <% if (accounts.length === 0) { %>
+      <div class="empty-state" style="padding:24px;">
+        <div class="empty-icon">&#128274;</div>
+        <h3><%= t('settings.emptyTitle') %></h3>
+        <p><%= t('settings.emptyDesc') %></p>
+      </div>
+    <% } else { %>
+      <div class="accounts-list">
+        <% accounts.forEach(function(acc) { %>
+          <div class="account-row">
+            <div class="account-info">
+              <div class="account-label">
+                <%= acc.label %>
+                <% if (acc.is_default) { %><span class="badge badge-green"><%= t('settings.defaultBadge') %></span><% } %>
+              </div>
+              <div class="account-user">
+                <span style="color:var(--cyan)">@<%= acc.github_user %></span>
+                <span class="account-token-hint">token: &#8226;&#8226;&#8226;&#8226;&#8226;&#8226;</span>
+              </div>
+            </div>
+            <div class="account-actions">
+              <form method="POST" action="/repos/accounts/<%= acc.id %>/default" style="display:inline">
+                <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+                <button type="submit" class="btn btn-secondary btn-sm" <%= acc.is_default ? 'disabled' : '' %>><%= t('settings.setAsDefault') %></button>
+              </form>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEditForm(<%= acc.id %>)"><%= t('settings.edit') %></button>
+              <form method="POST" action="/repos/accounts/<%= acc.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('confirm.deleteAccount') %>')">
+                <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+                <button type="submit" class="btn btn-danger btn-sm">&#10005;</button>
+              </form>
+            </div>
+          </div>
+          <div class="account-edit-form" id="edit-<%= acc.id %>" style="display:none;">
+            <form method="POST" action="/repos/accounts/<%= acc.id %>/edit">
+              <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+              <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                  <label><%= t('field.label') %></label>
+                  <input type="text" name="label" value="<%= acc.label %>" required>
+                </div>
+                <div class="form-group">
+                  <label><%= t('field.githubUser') %></label>
+                  <input type="text" name="githubUser" value="<%= acc.github_user %>" required>
+                </div>
+              </div>
+              <div class="form-group">
+                <label><%= t('field.newToken') %></label>
+                <input type="password" name="token" placeholder="<%= t('placeholder.token') %>">
+                <span class="help-text"><%= t('field.newTokenHint') %></span>
+              </div>
+              <div class="form-group">
+                <label class="checkbox-group">
+                  <input type="checkbox" name="isDefault" <%= acc.is_default ? 'checked' : '' %>>
+                  <span><%= t('field.asDefault') %></span>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary"><%= t('button.save') %></button>
+                <button type="button" class="btn btn-secondary" onclick="toggleEditForm(<%= acc.id %>)"><%= t('button.cancel') %></button>
+              </div>
+            </form>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+
+    <hr style="border:0;border-top:1px solid var(--border);margin:24px 0;">
+
+    <h3 style="margin-bottom:12px;"><%= t('settings.addTitle') %></h3>
+    <form method="POST" action="/repos/accounts/add">
+      <%- (typeof csrfInput !== 'undefined' ? csrfInput : '') %>
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label for="addLabel"><%= t('field.label') %></label>
+          <input type="text" id="addLabel" name="label" required placeholder="<%= t('placeholder.label') %>">
+          <span class="help-text"><%= t('field.labelHint') %></span>
+        </div>
+        <div class="form-group">
+          <label for="addGithubUser"><%= t('field.githubUser') %></label>
+          <input type="text" id="addGithubUser" name="githubUser" required placeholder="<%= t('placeholder.githubUser') %>">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="addToken"><%= t('field.token') %></label>
+        <input type="password" id="addToken" name="token" required placeholder="<%= t('placeholder.token') %>">
+        <span class="help-text"><%= t('settings.tokenHint') %></span>
+      </div>
+      <div class="form-group">
+        <label class="checkbox-group">
+          <input type="checkbox" name="isDefault" <%= accounts.length === 0 ? 'checked' : '' %>>
+          <span><%= t('field.asDefaultInline') %></span>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-success"><%= t('settings.addTitle') %></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleEditForm(id) {
+  var el = document.getElementById('edit-' + id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+
+<%- include('partials/footer') %>
