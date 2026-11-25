@@ -127,7 +127,7 @@
 
 | Dashboard | Repo View |
 | --- | --- |
-| ![Dashboard](https://cdn.discordapp.com/attachments/1502276789412561020/1574952405341184000/image.png?ex=6b07843a&is=6b0632ba&hm=dadfe497ed005f1c9309f2dfad70743da31c1bbe08da13fee24f1c05b2599b0f?text=Dashboard+view) | ![Repo View](https://via.placeholder.com/640x360/0D0D1A/17A2B8?text=Repo+view) |
+| ![Dashboard]([https://cdn.discordapp.com/attachments/1502276789412561020/1574952405341184000/image.png?ex=6b07843a&is=6b0632ba&hm=dadfe497ed005f1c9309f2dfad70743da31c1bbe08da13fee24f1c05b2599b0f?text=Dashboard+view](https://cdn.discordapp.com/attachments/1502276789412561020/1574952405341184000/image.png?ex=6b07843a&is=6b0632ba&hm=dadfe497ed005f1c9309f2dfad70743da31c1bbe08da13fee24f1c05b2599b0f&)) | ![Repo View](https://via.placeholder.com/640x360/0D0D1A/17A2B8?text=Repo+view) |
 
 | Settings (accounts) | Auto-Sync Watch |
 | --- | --- |
