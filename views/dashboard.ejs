@@ -146,6 +146,7 @@
     var h = '';
     h += '<div class="repo-card status-' + esc(repo.color) + '" data-id="' + esc(repo.id) + '" data-search="' + esc(searchData) + '" data-tags="' + esc(repoTags.join(' ')) + '" data-favorite="' + (repo.favorite ? '1' : '0') + '">';
     h += '<input type="checkbox" class="repo-select" value="' + esc(repo.id) + '" onchange="updateBulk()" title="' + esc(t('bulk.selectAll')) + '">';
+    h += '<span class="repo-select-wrapper"></span>';
     h += '<button type="button" class="fav-btn' + (repo.favorite ? ' active' : '') + '" onclick="toggleFavorite(' + esc(repo.id) + ', this)" title="' + esc(repo.favorite ? t('favorite.remove') : t('favorite.add')) + '">' + (repo.favorite ? '&#9733;' : '&#9734;') + '</button>';
     h += statusPill;
     h += statusIndicator;
@@ -322,6 +323,7 @@ function renderRepoCard(repo) {
   var h = '';
   h += '<div class="repo-card status-' + esc(color) + '" data-id="' + esc(repo.id) + '" data-search="' + esc(searchData) + '" data-tags="' + esc(repoTags.join(' ')) + '" data-favorite="' + (repo.favorite ? '1' : '0') + '">';
   h += '<input type="checkbox" class="repo-select" value="' + esc(repo.id) + '" onchange="updateBulk()" title="' + esc(T.selectAll) + '">';
+  h += '<span class="repo-select-wrapper"></span>';
   h += '<button type="button" class="fav-btn' + (repo.favorite ? ' active' : '') + '" onclick="toggleFavorite(' + esc(repo.id) + ', this)" title="' + esc(repo.favorite ? T.favRemove : T.favAdd) + '">' + (repo.favorite ? '&#9733;' : '&#9734;') + '</button>';
   h += '<span class="repo-status-pill ' + esc(color) + '">' + esc(T.status[color] || color) + '</span>';
   if (status === 'clean') {
@@ -669,34 +671,53 @@ function syncRepo(id) {
     Object.keys(repoDataMap).forEach(function(id) {
       socket.emit('join-repo', id);
     });
-    // Refreh alleen na 2 seconden bij connect, niet direct
-    setTimeout(refreshStatuses, 2000);
+    // Refresh na 1 seconde bij connect
+    setTimeout(function() {
+      if (document.visibilityState === 'visible') triggerRefresh();
+    }, 1000);
   });
   socket.on('repo-update', function(data) {
     applyRepoUpdate(data);
+    if (data.logs) applySearch(); // Update filter zichtbaarheid bij nieuwe logs
+  });
+  socket.on('sync-log', function(data) {
+    // Direct de UI bijwerken bij een sync-log bericht
+    var card = document.querySelector('.repo-card[data-id="' + data.repoId + '"]');
+    if (card) card.classList.add('updating');
+    setTimeout(function() {
+      if (card) card.classList.remove('updating');
+      triggerRefresh();
+    }, 500);
   });
 
   // Socket.IO is de primaire bron. Pollen alleen als fallback wanneer de
   // verbinding weg is, zodat we niet tegelijk via socket én interval verversen.
   var lastRefresh = 0;
+  var refreshInProgress = false;
+
+  function triggerRefresh() {
+    if (refreshInProgress) return;
+    var now = Date.now();
+    if (now - lastRefresh < 10000) return; // Minimaal 10 seconden tussen refreshes
+    refreshInProgress = true;
+    lastRefresh = now;
+    refreshStatuses();
+    setTimeout(function() { refreshInProgress = false; }, 2000);
+  }
+
+  // Refresh elke 45 seconden als dashboard actief en verbinding goed
   setInterval(function() {
-    if (!socket.connected && !document.hidden) {
-      var now = Date.now();
-      if (now - lastRefresh > 60000) { // Minimaal 1 minuten tussen pollen
-        refreshStatuses();
-        lastRefresh = now;
-      }
+    if (socket.connected && document.visibilityState === 'visible') {
+      triggerRefresh();
     }
-  }, 60000); // Elke minuut checken
+  }, 45000);
 
   // Bij terugkeren naar het tabblad direct verversen (gemiste events inhalen).
   document.addEventListener('visibilitychange', function() {
-    if (!document.hidden) {
-      var now = Date.now();
-      if (now - lastRefresh > 30000) { // Max 30 seconden tussen refreshes
-        refreshStatuses();
-        lastRefresh = now;
-      }
+    if (!document.hidden && socket.connected) {
+      setTimeout(function() {
+        triggerRefresh();
+      }, 100);
     }
   });
 

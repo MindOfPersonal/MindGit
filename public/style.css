@@ -1426,15 +1426,41 @@ select:disabled { opacity: 0.5; cursor: not-allowed; }
 .repo-card { padding-top: 44px; }
 .repo-status-pill { top: 12px; right: 52px; }
 
-.repo-select {
+.repo-select-wrapper {
   position: absolute;
   top: 14px;
   left: 16px;
-  width: 17px;
-  height: 17px;
-  accent-color: var(--accent);
-  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  transition: border-color 0.15s, box-shadow 0.15s;
   z-index: 3;
+  pointer-events: none;
+}
+.repo-card:hover .repo-select-wrapper {
+  border-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.repo-select:checked + .repo-select-wrapper::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: block;
+}
+
+.repo-card.updating {
+  opacity: 0.9;
+}
+.repo-card.updating .repo-actions button {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .fav-btn {

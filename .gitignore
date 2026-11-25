@@ -61,3 +61,13 @@ Dev/
 
 # Database back-ups
 backups/
+
+# Test scripts output
+test-output/
+throttling-results/
+
+# Test repos
+/tmp/test-repo-*/
+
+# No github content
+/Daan
